@@ -3,6 +3,7 @@
 # 📍 Microservicio de Telemetría GPS (`telemetry-service`)
 
 ![NestJS](https://img.shields.io/badge/NestJS-E0234E?style=for-the-badge&logo=nestjs&logoColor=white)
+![Jest](https://img.shields.io/badge/Jest-C21325?style=for-the-badge&logo=jest&logoColor=white)
 ![MongoDB](https://img.shields.io/badge/MongoDB-47A248?style=for-the-badge&logo=mongodb&logoColor=white)
 ![Mongoose](https://img.shields.io/badge/Mongoose-880000?style=for-the-badge&logo=mongoose&logoColor=white)
 ![Socket.io](https://img.shields.io/badge/Socket.io-010101?style=for-the-badge&logo=socketdotio&logoColor=white)
@@ -44,6 +45,35 @@ El **`telemetry-service`** es el microservicio encargado del procesamiento de da
 
 ---
 
+## 🧪 Pruebas Unitarias y Cobertura (Unit Testing)
+
+El microservicio incluye pruebas unitarias completas desarrolladas con **Jest** y Mocks de Mongoose y WebSockets:
+
+### 🔬 Estructura de Pruebas:
+
+* **Dominio (`test/unit/domain/entities/`):**
+  * `telemetry-point.entity.spec.ts`: Verifica métodos de dominio como la detección de exceso de velocidad (`isHighSpeed()`).
+* **Aplicación (`test/unit/application/use-cases/`):**
+  * `record-location.use-case.spec.ts`: Prueba la grabación de posiciones GPS usando Mocks del puerto de repositorio.
+  * `get-location-history.use-case.spec.ts`: Prueba la consulta de historial de ruta y la generación de puntos simulados (`seedRouteTelemetry`).
+* **Infraestructura (`test/unit/infrastructure/`):**
+  * `persistence/adapters/mongoose-telemetry-repository.adapter.spec.ts`: Prueba unitaria del adaptador de Mongoose para MongoDB.
+  * `websockets/telemetry.gateway.spec.ts`: Prueba la gestión de salas en Socket.io (`joinTrackingRoom`) y la transmisión en vivo de coordenadas (`driverLocationUpdate`).
+  * `messaging/consumers/order-events.consumer.spec.ts`: Verifica la recepción de eventos de RabbitMQ.
+  * `http/controllers/telemetry.controller.spec.ts`: Prueba los endpoints REST.
+
+### 🚀 Comandos para Ejecutar las Pruebas:
+
+```bash
+# Ejecutar las pruebas unitarias
+pnpm test
+
+# Generar reporte de cobertura de código (Code Coverage)
+pnpm test:cov
+```
+
+---
+
 ## 🗄️ Colección de MongoDB (`gps_telemetry`)
 
 ```json
@@ -70,27 +100,12 @@ WebSocket Namespace: `ws://localhost:3002/telemetry`
 
 ### 1. Poblar Ruta de Coordenadas GPS de Prueba (Seeder)
 * **POST** `/telemetry/seed/:trackingNumber`
-* **Ejemplo:** `POST http://localhost:3002/telemetry/seed/TRK-492104`
-* **Descripción:** Genera e inserta en MongoDB 5 puntos GPS consecutivos simulando una ruta de despacho por la ciudad.
 
 ### 2. Consultar Historial de Ruta GPS de una Orden
 * **GET** `/telemetry/tracking/:trackingNumber`
-* **Respuesta (200 OK):** Array ordenado cronológicamente de todos los puntos GPS registrados para la orden.
 
 ### 3. Registrar Coordenada GPS vía REST
 * **POST** `/telemetry`
-* **Body:**
-```json
-{
-  "orderId": "e4a9b21f-7f12-4c31-891d-5b32f14a091a",
-  "trackingNumber": "TRK-492104",
-  "driverId": "driver-1",
-  "latitude": -33.4255,
-  "longitude": -70.6148,
-  "speedKmH": 50,
-  "batteryLevel": 90
-}
-```
 
 ### ⚡ Eventos WebSocket (Socket.io)
 * **Evento de Suscripción:** `joinTrackingRoom` con payload `{ "trackingNumber": "TRK-492104" }`.
@@ -100,9 +115,6 @@ WebSocket Namespace: `ws://localhost:3002/telemetry`
 
 ## 🛠️ Ejecución Local
 
-Desde la raíz del monorepo:
-
 ```bash
-# Iniciar en modo desarrollo con watch
-pnpm dev:telemetry
+pnpm start:dev
 ```
