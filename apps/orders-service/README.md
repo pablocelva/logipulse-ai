@@ -3,6 +3,7 @@
 # 📦 Microservicio de Órdenes (`orders-service`)
 
 ![NestJS](https://img.shields.io/badge/NestJS-E0234E?style=for-the-badge&logo=nestjs&logoColor=white)
+![Jest](https://img.shields.io/badge/Jest-C21325?style=for-the-badge&logo=jest&logoColor=white)
 ![TypeORM](https://img.shields.io/badge/TypeORM-FE0803?style=for-the-badge&logo=typeorm&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
 ![RabbitMQ](https://img.shields.io/badge/RabbitMQ-FF6600?style=for-the-badge&logo=rabbitmq&logoColor=white)
@@ -51,23 +52,36 @@ Este microservicio aplica de forma estricta el patrón de **Arquitectura Hexagon
       [ PostgreSQL DB ]                                            [ RabbitMQ ]
 ```
 
-### 🧠 Capas de la Aplicación:
+---
 
-1. **`domain/` (Dominio Puro):**
-   * **`Order` (Entidad):** Encapsula el estado de la orden y las reglas de negocio (ej. validación de transiciones de estado mediante `markAsInTransit()`, `markAsDelivered()`, `reportIncident()`). Sin dependencias de NestJS ni TypeORM.
-   * **`OrderRepositoryPort` & `EventPublisherPort` (Puertos):** Interfaces de TypeScript que definen los contratos para interactuar con la infraestructura.
-   * **`OrderDomainException`:** Excepciones de dominio fuertemente tipadas.
+## 🧪 Pruebas Unitarias y Cobertura (Unit Testing)
 
-2. **`application/` (Casos de Uso):**
-   * **`CreateOrderUseCase`:** Coordina la creación de la orden y emisión del evento `order.created`.
-   * **`GetOrderByIdUseCase`:** Recupera órdenes desde el repositorio.
-   * **`UpdateOrderStatusUseCase`:** Ejecuta transiciones de estado y publica `order.status_updated`.
-   * **DTOs:** Validaciones estrictas de entrada usando `class-validator` y `class-transformer`.
+El microservicio incluye una suite completa de pruebas unitarias desarrolladas con **Jest** y el módulo `@nestjs/testing`, asegurando la calidad y el aislamiento del dominio:
 
-3. **`infrastructure/` (Adaptadores Concretos):**
-   * **`persistence/`:** Entidad ORM de TypeORM (`OrderOrmEntity`), Mapeador (`OrderMapper`) y Adaptador de repositorio (`TypeOrmOrderRepositoryAdapter`).
-   * **`messaging/`:** Adaptador de publicación a RabbitMQ (`RabbitMqEventPublisherAdapter`).
-   * **`http/`:** Controlador REST (`OrderController`).
+### 🔬 Estructura de Pruebas:
+
+* **Dominio (`test/unit/domain/`):**
+  * `entities/order.entity.spec.ts`: Verifica reglas de negocio como transiciones de estado válidas y descarte de transiciones ilegales.
+  * `exceptions/order-domain.exception.spec.ts`: Valida las excepciones personalizadas de dominio.
+* **Aplicación (`test/unit/application/use-cases/`):**
+  * `create-order.use-case.spec.ts`: Testea el flujo de creación de orden, la llamada al puerto del repositorio y la emisión del evento a RabbitMQ usando `jest.fn()`.
+  * `get-order-by-id.use-case.spec.ts`: Valida la consulta por ID y la excepción `OrderNotFoundException`.
+  * `update-order-status.use-case.spec.ts`: Prueba cambios de estado y publicación de eventos.
+* **Infraestructura (`test/unit/infrastructure/`):**
+  * `persistence/mappers/order.mapper.spec.ts`: Prueba la conversión bidireccional entre la entidad ORM y la entidad de dominio.
+  * `persistence/adapters/typeorm-order-repository.adapter.spec.ts`: Prueba unitaria del adaptador de TypeORM usando un Mock del repositorio.
+  * `messaging/adapters/rabbitmq-event-publisher.adapter.spec.ts`: Verifica la emisión de mensajes con Mock de `ClientProxy`.
+  * `http/controllers/order.controller.spec.ts`: Prueba los endpoints HTTP asociándolos a los casos de uso.
+
+### 🚀 Comandos para Ejecutar las Pruebas:
+
+```bash
+# Ejecutar las pruebas unitarias
+pnpm test
+
+# Generar reporte de cobertura de código (Code Coverage)
+pnpm test:cov
+```
 
 ---
 
@@ -96,26 +110,9 @@ Base URL: `http://localhost:3001`
 ### 1. Poblar Base de Datos (Seeder)
 * **POST** `/orders/seed`
 * **Descripción:** Genera e inserta 5 órdenes de prueba realistas con distintos estados en PostgreSQL.
-* **Respuesta (201 Created):** Array de 5 órdenes creadas.
 
 ### 2. Listar todas las órdenes
 * **GET** `/orders`
-* **Respuesta (200 OK):**
-```json
-[
-  {
-    "id": "e4a9b21f-7f12-4c31-891d-5b32f14a091a",
-    "trackingNumber": "TRK-492104",
-    "merchantId": "merchant-alpha",
-    "originAddress": "Av. Providencia 1234, Santiago",
-    "destinationAddress": "Av. Apoquindo 5678, Las Condes",
-    "price": 15000,
-    "status": "CREATED",
-    "createdAt": "2026-09-13T15:25:40.000Z",
-    "updatedAt": "2026-09-13T15:25:40.000Z"
-  }
-]
-```
 
 ### 3. Crear una nueva orden
 * **POST** `/orders`
@@ -128,21 +125,12 @@ Base URL: `http://localhost:3001`
   "price": 15000
 }
 ```
-* **Respuesta (201 Created):** Objeto `Order` con ID y `trackingNumber` asignado.
 
 ### 4. Obtener orden por ID
 * **GET** `/orders/:id`
-* **Respuesta (200 OK):** Objeto de la orden correspondiente.
 
 ### 5. Actualizar estado de una orden
 * **PATCH** `/orders/:id/status`
-* **Body:**
-```json
-{
-  "status": "IN_TRANSIT"
-}
-```
-* **Respuesta (200 OK):** Orden actualizada con nuevo estado.
 
 ---
 
@@ -150,21 +138,12 @@ Base URL: `http://localhost:3001`
 
 | Event Pattern | Payload | Descripción |
 |---|---|---|
-| `order.created` | `{ orderId, trackingNumber, merchantId, status, timestamp }` | Emitido al crear una orden. Consumido por el microservicio de telemetría e IA. |
+| `order.created` | `{ orderId, trackingNumber, merchantId, status, timestamp }` | Emitido al crear una orden. |
 | `order.status_updated` | `{ orderId, trackingNumber, status, updatedAt }` | Emitido al cambiar de estado. |
 
 ---
 
 ## 🛠️ Ejecución Local
-
-Desde la raíz del monorepo:
-
-```bash
-# Iniciar en modo desarrollo con watch
-pnpm dev:orders
-```
-
-O desde la carpeta `apps/orders-service`:
 
 ```bash
 pnpm start:dev
