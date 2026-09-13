@@ -1,0 +1,93 @@
+# ==========================================
+# 🛑 SEGURIDAD Y ARCHIVOS DE ENTORNO (CRÍTICO)
+# ==========================================
+# NUNCA subir llaves de API (Groq, Tavily), credenciales de Postgres/Mongo o secretos.
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+!.env.example
+
+# ==========================================
+# 📦 DEPENDENCIAS Y GESTORES DE PAQUETES
+# ==========================================
+node_modules/
+.pnpm-store/
+.yarn/
+.npm/
+package-lock.json.log
+yarn-error.log
+pnpm-debug.log*
+lerna-debug.log*
+
+# ==========================================
+# 🔨 SALIDAS DE COMPILACIÓN Y BUILDS
+# ==========================================
+# Compilación de NestJS (Microservicios)
+dist/
+/apps/*/dist/
+
+# Compilación de Next.js (Frontend)
+.next/
+/apps/web/.next/
+out/
+/apps/web/out/
+build/
+/apps/*/build/
+
+# Paquetes compartidos / Bundles
+/packages/*/dist/
+*.tsbuildinfo
+
+# ==========================================
+# 🐳 DOCKER Y VOLÚMENES LOCALES
+# ==========================================
+# Datos locales persisentes de DBs si usas bind mounts
+.dockerdata/
+pgdata/
+mongodata/
+
+# ==========================================
+# 🧪 LOGS, COBERURA Y PRUEBAS
+# ==========================================
+logs/
+*.log
+npm-debug.log*
+coverage/
+/apps/*/coverage/
+.nyc_output/
+.swc/
+
+# ==========================================
+# 💻 CONFIGURACIONES DE IDE Y SISTEMA OPERATIVO
+# ==========================================
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# JetBrains (WebStorm / IntelliJ)
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Mac & Windows
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ==========================================
+# 🚀 CACHÉS DE HERRAMIENTAS DE MONOREPO
+# ==========================================
+.turbo/
+.cache/
