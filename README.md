@@ -19,7 +19,7 @@
 
 ---
 
-## 🎯 Descripción del Proyecto
+## 🎯 1. Descripción del Proyecto
 
 **LogiPulse AI** es una plataforma SaaS distribuida para la gestión logística de envíos y trazabilidad de flotas en tiempo real. Combina una arquitectura de **microservicios orientada a eventos (EDA)**, **persistencia políglota** (PostgreSQL + MongoDB), **despliegue en contenedores** (Docker y Kubernetes) y **asistencia inteligente de IA** (Groq API + Tavily Search API) para el diagnóstico automático de incidentes de tráfico y clima.
 
@@ -27,12 +27,12 @@ Este proyecto ha sido diseñado bajo los estándares más exigentes de ingenier�
 
 ---
 
-## 🏛️ Arquitectura del Sistema
+## 🏛️ 2. Arquitectura General del Sistema
 
 ```text
                                ┌─────────────────────────────────────────┐
                                │           Next.js 14+ Frontend          │
-                               │        (App Router, React, TS)          │
+                               │     (App Router, Leaflet, React)        │
                                └────────────────────┬────────────────────┘
                                                     │ REST / WebSockets
                                                     ▼
@@ -43,7 +43,7 @@ Este proyecto ha sido diseñado bajo los estándares más exigentes de ingenier�
                                         ▼                      ▼
                      ┌───────────────────────┐    ┌───────────────────────┐
                      │    orders-service     │    │   telemetry-service   │
-                     │  (NestJS + Hexagonal) │    │  (NestJS + Mongo)     │
+                     │ (NestJS + PostgreSQL) │    │  (NestJS + Mongo + WS)│
                      └──────────┬────────────┘    └──────────┬────────────┘
                                 │                            │
                                 ▼ RabbitMQ Events            ▼
@@ -53,23 +53,9 @@ Este proyecto ha sido diseñado bajo los estándares más exigentes de ingenier�
                      └────────────────────────────────────────────┘
 ```
 
-### 🧩 Patrones de Arquitectura y Buenas Prácticas Aplicadas
-
-* **Arquitectura Hexagonal (Ports & Adapters):** El dominio de negocio permanece 100% aislado de frameworks y ORMs. La infraestructura (DB, brokers de mensajería, APIs externas) implementa puertos mediante inyección de dependencias.
-* **Persistencia Políglota (Polyglot Persistence):**
-  * **PostgreSQL:** Garantiza integridad ACID para usuarios, órdenes y transacciones financieras.
-  * **MongoDB:** Almacena eventos de geolocalización GPS masivos y logs semiestructurados.
-* **Event-Driven Architecture (EDA):** Comunicación asíncrona entre microservicios utilizando **RabbitMQ** (AMQP) para desacoplar procesos.
-* **Pruebas Unitarias & Cobertura (Jest):** Suite de tests aislando puertos mediante Mocks en cada microservicio para garantizar la confiabilidad del código.
-* **Principios SOLID:**
-  * *Single Responsibility:* Casos de uso atómicos.
-  * *Open/Closed:* Extensión mediante adaptadores sin modificar el dominio.
-  * *Liskov Substitution & Interface Segregation:* Puertos de interfaces granulares.
-  * *Dependency Inversion:* Los módulos de alto nivel dependen de abstracciones (interfaces), no de implementaciones concretas.
-
 ---
 
-## 📁 Estructura del Monorepo (`pnpm workspaces`)
+## 📁 3. Estructura del Monorepo (`pnpm workspaces`)
 
 ```text
 logipulse-ai/
@@ -77,7 +63,7 @@ logipulse-ai/
 │   ├── orders-service/          # 📦 Microservicio de Órdenes (PostgreSQL + REST + RabbitMQ + Jest)
 │   ├── telemetry-service/       # 📍 Microservicio de Telemetría GPS (MongoDB + WebSockets + Jest)
 │   ├── ai-analytics-service/    # 🤖 Microservicio de IA (Groq Cloud API + Tavily API + Jest)
-│   └── web/                     # 💻 Frontend Next.js 14+ (App Router, Tailwind)
+│   └── web/                     # 💻 Frontend Next.js 14+ (App Router, Leaflet, Tailwind)
 ├── packages/
 │   ├── shared-types/            # 📐 DTOs e Interfaces compartidas
 │   └── config-eslint/           # ⚙️ Reglas de Clean Code
@@ -89,40 +75,54 @@ logipulse-ai/
 
 ---
 
-## 📚 Documentación de Microservicios
+## 📚 4. Documentación Detallada de Microservicios
 
-Para consultar el detalle técnico profundo de la arquitectura, esquemas de BD, endpoints y tests de cada servicio:
+Para consultar diagramas UML, esquemas de bases de datos, especificación de endpoints y cobertura de pruebas de cada servicio:
 
-* 📦 **[Microservicio de Órdenes (orders-service)](/apps/orders-service/README.md)**: Documentación completa del microservicio relacional en NestJS + PostgreSQL + TypeORM + Jest Tests.
-* 📍 **[Microservicio de Telemetría GPS (telemetry-service)](/apps/telemetry-service/README.md)**: Documentación completa del microservicio NoSQL en NestJS + MongoDB + WebSockets (Socket.io) + RabbitMQ Consumer + Jest Tests.
-* 🤖 **[Microservicio de IA (ai-analytics-service)](/apps/ai-analytics-service/README.md)**: Documentación completa del microservicio de IA en NestJS + Groq Cloud API (`groq/compound-mini`) + Tavily Search API + Jest Tests.
+* 📦 **[Microservicio de Órdenes (orders-service)](/apps/orders-service/README.md)**: Documentación completa del microservicio transaccional en NestJS + PostgreSQL + TypeORM + Eventos RabbitMQ + Diagramas UML.
+* 📍 **[Microservicio de Telemetría GPS (telemetry-service)](/apps/telemetry-service/README.md)**: Documentación completa del microservicio NoSQL en NestJS + MongoDB + Gateways de WebSockets (Socket.io) + Ingestión de Rutas Geográficas + Diagramas UML.
+* 🤖 **[Microservicio de IA (ai-analytics-service)](/apps/ai-analytics-service/README.md)**: Documentación completa del microservicio de IA en NestJS + Groq Cloud API (`groq/compound-mini`) + Tavily Search API + Diagnóstico de Incidentes + Diagramas UML.
+* 💻 **[Frontend Web (apps/web)](/apps/web/README.md)**: Aplicación Dashboard en Next.js 14+ (App Router), React, Tailwind CSS, Mapa Interactivo de Flotas (Leaflet), WebSockets Client, MSW Network Mocking, Jest Tests y Playwright E2E Tests.
+* ⚙️ **[Guía de Configuración TypeScript y Advertencias IDE](/docs/TYPESCRIPT_CONFIG.md)**: Documento técnico detallando el comportamiento de `tsconfig.json`, `baseUrl` y `target: "es5"` en el servidor de lenguaje de TypeScript 5+.
 
 ---
 
-## 🧪 Pruebas Unitarias y Reportes de Cobertura (Code Coverage)
+## 🧪 5. Pruebas Unitarias, Cobertura y E2E (Testing Metrics)
 
-El monorepo cuenta con suites de pruebas unitarias creadas con **Jest** y **NestJS Testing Module**. Para ejecutarlas desde la raíz:
+El monorepo cuenta con una suite completa de pruebas unitarias automatizadas desarrolladas con **Jest**, **React Testing Library**, **MSW** y **Playwright E2E**:
 
+| Servicio / Aplicación | Test Suites | Tests Totales | Cobertura / Estado |
+|---|---|---|---|
+| 📦 **`orders-service`** | 9 / 9 | 31 / 31 | 🟢 100% Pass |
+| 📍 **`telemetry-service`** | 7 / 7 | 16 / 16 | 🟢 100% Pass |
+| 🤖 **`ai-analytics-service`** | 4 / 4 | 8 / 8 | 🟢 100% Pass |
+| 💻 **`web` (Frontend)** | 2 / 2 | 5 / 5 | 🟢 100% Pass |
+| **TOTAL MONOREPO** | **22 / 22** | **60 / 60** | **🟢 100% PASS** |
+
+### 🛠️ Comandos de Prueba:
 ```bash
-# 1. Ejecutar pruebas unitarias del microservicio de Órdenes
+# 1. Ejecutar pruebas unitarias de Órdenes
 pnpm test:orders
 
-# 2. Ejecutar pruebas unitarias del microservicio de Telemetría
+# 2. Ejecutar pruebas unitarias de Telemetría
 pnpm test:telemetry
 
-# 3. Ejecutar pruebas unitarias del microservicio de IA
+# 3. Ejecutar pruebas unitarias de IA
 pnpm test:ai
 
-# 4. Ejecutar TODAS las pruebas unitarias del Monorepo
+# 4. Ejecutar pruebas unitarias del Frontend Web (apps/web)
+pnpm --filter @logipulse/web test
+
+# 5. Ejecutar TODAS las pruebas del Monorepo
 pnpm test:all
 
-# 5. Generar reporte completo de cobertura de código (Code Coverage Table)
+# 6. Generar reporte completo de cobertura de código
 pnpm test:cov
 ```
 
 ---
 
-## ⚡ Guía de Inicio Rápido (Quick Start)
+## ⚡ 6. Guía de Inicio Rápido (Quick Start)
 
 ### 📋 Requisitos Previos
 * Node.js v20+
@@ -154,22 +154,10 @@ pnpm dev:telemetry
 
 # Terminal 3: Servicio de IA (Puerto 3003)
 pnpm dev:ai
+
+# Terminal 4: Aplicación Web Frontend Next.js 14+ (Puerto 3000)
+pnpm --filter @logipulse/web dev
 ```
-
----
-
-## 🛠️ Tecnologías Utilizadas
-
-| Categoría | Tecnologías |
-|---|---|
-| **Backend Framework** | NestJS, Node.js, Express, RxJS |
-| **Frontend Framework** | Next.js 14+ (App Router), React, Tailwind CSS, TypeScript |
-| **Testing & Coverage** | Jest, ts-jest, NestJS Testing Module, Code Coverage Reports |
-| **Bases de Datos** | PostgreSQL (Relacional - TypeORM), MongoDB (NoSQL - Mongoose) |
-| **Messaging & Async** | RabbitMQ (AMQP), Microservices ClientProxy |
-| **IA & LLMs** | Groq Cloud API (`groq/compound-mini`, `groq/compound`, `openai/gpt-oss-120b`), Tavily Search API |
-| **DevOps & Containers** | Docker, Docker Compose, Kubernetes, NGINX Ingress |
-| **Herramientas & CI/CD** | pnpm Workspaces, Git, GitHub Actions, ESLint |
 
 ---
 
