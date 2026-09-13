@@ -1,150 +1,308 @@
 <div align="center">
 
 # 📦 Microservicio de Órdenes (`orders-service`)
+### *Core Transaccional del Ciclo de Vida de Despachos y Eventos de Negocio*
 
 ![NestJS](https://img.shields.io/badge/NestJS-E0234E?style=for-the-badge&logo=nestjs&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 ![Jest](https://img.shields.io/badge/Jest-C21325?style=for-the-badge&logo=jest&logoColor=white)
 ![TypeORM](https://img.shields.io/badge/TypeORM-FE0803?style=for-the-badge&logo=typeorm&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
 ![RabbitMQ](https://img.shields.io/badge/RabbitMQ-FF6600?style=for-the-badge&logo=rabbitmq&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 
 </div>
 
 ---
 
-## 📖 Descripción General
+## 📖 1. Descripción General & Propósito
 
-El **`orders-service`** es el microservicio transaccional principal de la plataforma **LogiPulse AI**. Es el responsable de administrar el ciclo de vida de los despachos (creación, cambio de estado a tránsito, entrega o reporte de incidentes), garantizar la consistencia de datos mediante **PostgreSQL** y notificar eventos en tiempo real al resto del sistema vía **RabbitMQ**.
+El **`orders-service`** es el microservicio transaccional primario del ecosistema **LogiPulse AI**. Es responsable de gestionar el ciclo de vida completo de las órdenes de despacho de carga: creación de envíos, asignación de tracking numbers, transiciones de estado de entrega (`CREATED`, `IN_TRANSIT`, `DELIVERED`, `CANCELLED`, `INCIDENT`) y auditoría de cambios.
+
+Garantiza integridad de datos **ACID** a través de **PostgreSQL** y desacopla la comunicación distribuida mediante la publicación de eventos de dominio en el broker de mensajería **RabbitMQ (AMQP)**.
 
 ---
 
-## 🏛️ Arquitectura Hexagonal (Ports & Adapters)
+## 📂 2. Estructura de Directorios & Arquitectura de Carpetas
 
-Este microservicio aplica de forma estricta el patrón de **Arquitectura Hexagonal**, dividiendo la aplicación en 3 capas desacopladas:
+A continuación se detalla la estructura física del código fuente en `src/`, organizada según la **Arquitectura Hexagonal**:
 
 ```text
-                             [ Client HTTP / REST ]
-                                        │
-                                        ▼ (Input Adapter)
-                        ┌───────────────────────────────┐
-                        │      OrderHttpController      │
-                        └───────────────┬───────────────┘
-                                        │
-                                        ▼ (Application Layer)
-                        ┌───────────────────────────────┐
-                        │      CreateOrderUseCase       │
-                        └───────┬───────────────┬───────┘
-                                │               │
-          (Output Port)         │               │         (Output Port)
-     ┌──────────────────────────┘               └──────────────────────────┐
-     ▼                                                                     ▼
-┌──────────────────────────┐                               ┌──────────────────────────┐
-│   OrderRepositoryPort    │                               │    EventPublisherPort    │
-└────────────┬─────────────┘                               └────────────┬─────────────┘
-             │                                                          │
-             ▼ (Output Adapter)                                         ▼ (Output Adapter)
-┌──────────────────────────┐                               ┌──────────────────────────┐
-│TypeOrmOrderRepoAdapter   │                               │RabbitMqPublisherAdapter  │
-└────────────┬─────────────┘                               └────────────┬─────────────┘
-             │                                                          │
-             ▼                                                          ▼
-      [ PostgreSQL DB ]                                            [ RabbitMQ ]
+apps/orders-service/
+├── src/
+│   ├── domain/                                 # 🧠 CAPA DE DOMINIO (Reglas de Negocio Puras)
+│   │   ├── entities/
+│   │   │   └── order.entity.ts                 # Entidad de Dominio Order con encapsulamiento y toJSON()
+│   │   ├── exceptions/
+│   │   │   └── order-domain.exception.ts       # Excepciones de negocio personalizadas
+│   │   └── ports/                              # Interfaces / Puertos de salida (Output Ports)
+│   │       ├── order-repository.port.ts        # Contrato para la persistencia de órdenes
+│   │       └── event-publisher.port.ts         # Contrato para la publicación de eventos AMQP
+│   │
+│   ├── application/                            # ⚙️ CAPA DE APLICACIÓN (Casos de Uso & DTOs)
+│   │   ├── dtos/
+│   │   │   ├── create-order.dto.ts             # DTO con validaciones class-validator para crear orden
+│   │   │   └── update-order-status.dto.ts      # DTO para cambio de estado
+│   │   └── use-cases/                          # Orquestación atómica de reglas de negocio
+│   │       ├── create-order.use-case.ts        # Crear orden, seeder y emisión order.created
+│   │       ├── update-order-status.use-case.ts # Cambio de estado y emisión order.status_updated
+│   │       └── get-order-by-id.use-case.ts     # Consultas de lectura por ID
+│   │
+│   ├── infrastructure/                         # 🔌 CAPA DE INFRAESTRUCTURA (Adapters & Frameworks)
+│   │   ├── http/
+│   │   │   └── controllers/
+│   │   │       └── order.controller.ts         # Controlador REST (@Controller('orders'))
+│   │   ├── persistence/
+│   │   │   ├── adapters/
+│   │   │   │   └── typeorm-order-repository.adapter.ts # Adaptador TypeORM del OrderRepositoryPort
+│   │   │   ├── entities/
+│   │   │   │   └── order.orm-entity.ts         # Entidad ORM mapeada a PostgreSQL (@Entity('orders'))
+│   │   │   └── mappers/
+│   │   │       └── order.mapper.ts             # Mapper conversor (Domain Entity <-> TypeORM Entity)
+│   │   └── messaging/
+│   │       └── adapters/
+│   │           └── rabbitmq-event-publisher.adapter.ts # Adaptador AMQP RabbitMQ ClientProxy
+│   │
+│   ├── main.ts                                 # Bootstrap del servicio NestJS (Puerto 3001, CORS, Pipes)
+│   ├── orders.module.ts                        # Módulo NestJS con inyección de dependencias por símbolos
+│   └── tsconfig.build.json                     # Configuración de compilación TypeScript rootDir: "src"
+│
+└── test/                                       # 🧪 PRUEBAS UNITARIAS (Jest)
+    └── unit/
+        ├── domain/
+        │   ├── entities/order.entity.spec.ts
+        │   └── exceptions/order-domain.exception.spec.ts
+        ├── application/
+        │   └── use-cases/
+        │       ├── create-order.use-case.spec.ts
+        │       ├── update-order-status.use-case.spec.ts
+        │       └── get-order-by-id.use-case.spec.ts
+        └── infrastructure/
+            ├── http/controllers/order.controller.spec.ts
+            ├── messaging/adapters/rabbitmq-event-publisher.adapter.spec.ts
+            └── persistence/
+                ├── adapters/typeorm-order-repository.adapter.spec.ts
+                └── mappers/order.mapper.spec.ts
 ```
 
 ---
 
-## 🧪 Pruebas Unitarias y Cobertura (Unit Testing)
+## 🏛️ 3. Arquitectura Hexagonal (Ports & Adapters)
 
-El microservicio incluye una suite completa de pruebas unitarias desarrolladas con **Jest** y el módulo `@nestjs/testing`, asegurando la calidad y el aislamiento del dominio:
-
-### 🔬 Estructura de Pruebas:
-
-* **Dominio (`test/unit/domain/`):**
-  * `entities/order.entity.spec.ts`: Verifica reglas de negocio como transiciones de estado válidas y descarte de transiciones ilegales.
-  * `exceptions/order-domain.exception.spec.ts`: Valida las excepciones personalizadas de dominio.
-* **Aplicación (`test/unit/application/use-cases/`):**
-  * `create-order.use-case.spec.ts`: Testea el flujo de creación de orden, la llamada al puerto del repositorio y la emisión del evento a RabbitMQ usando `jest.fn()`.
-  * `get-order-by-id.use-case.spec.ts`: Valida la consulta por ID y la excepción `OrderNotFoundException`.
-  * `update-order-status.use-case.spec.ts`: Prueba cambios de estado y publicación de eventos.
-* **Infraestructura (`test/unit/infrastructure/`):**
-  * `persistence/mappers/order.mapper.spec.ts`: Prueba la conversión bidireccional entre la entidad ORM y la entidad de dominio.
-  * `persistence/adapters/typeorm-order-repository.adapter.spec.ts`: Prueba unitaria del adaptador de TypeORM usando un Mock del repositorio.
-  * `messaging/adapters/rabbitmq-event-publisher.adapter.spec.ts`: Verifica la emisión de mensajes con Mock de `ClientProxy`.
-  * `http/controllers/order.controller.spec.ts`: Prueba los endpoints HTTP asociándolos a los casos de uso.
-
-### 🚀 Comandos para Ejecutar las Pruebas:
-
-```bash
-# Ejecutar las pruebas unitarias
-pnpm test
-
-# Generar reporte de cobertura de código (Code Coverage)
-pnpm test:cov
+```text
+                               ┌────────────────────────────────────────────────────────┐
+                               │                    HTTP REST Clients                   │
+                               └───────────────────────────┬────────────────────────────┘
+                                                           │
+                                                           ▼ (Input Adapter)
+                               ┌────────────────────────────────────────────────────────┐
+                               │                 OrderHttpController                    │
+                               └───────────────────────────┬────────────────────────────┘
+                                                           │
+                                                           ▼ (Application Layer)
+                               ┌────────────────────────────────────────────────────────┐
+                               │     CreateOrderUseCase / UpdateOrderStatusUseCase      │
+                               └─────────────┬────────────────────────────┬─────────────┘
+                                             │                            │
+                     (Output Port)           │                            │          (Output Port)
+           ┌─────────────────────────────────┘                            └─────────────────────────────────┐
+           ▼                                                                                                ▼
+┌──────────────────────────────┐                                                         ┌──────────────────────────────┐
+│     OrderRepositoryPort      │                                                         │      EventPublisherPort      │
+└──────────────┬───────────────┘                                                         └──────────────┬───────────────┘
+               │                                                                                        │
+               ▼ (Output Adapter)                                                                       ▼ (Output Adapter)
+┌──────────────────────────────┐                                                         ┌──────────────────────────────┐
+│  TypeOrmOrderRepoAdapter     │                                                         │   RabbitMqPublisherAdapter   │
+└──────────────┬───────────────┘                                                         └──────────────┬───────────────┘
+               │                                                                                        │
+               ▼                                                                                        ▼
+       [ PostgreSQL DB ]                                                                           [ RabbitMQ ]
 ```
 
 ---
 
-## 🗄️ Esquema de Base de Datos (PostgreSQL)
+## 📐 4. Diagrama de Clases UML y Dominio
 
-Tabla **`orders`**:
+```mermaid
+classDiagram
+    class Order {
+        +string id
+        +string trackingNumber
+        +string merchantId
+        +string originAddress
+        +string destinationAddress
+        +number price
+        +OrderStatus status
+        +Date createdAt
+        +Date updatedAt
+        +updateStatus(newStatus: OrderStatus) void
+        +toJSON() Object
+    }
+
+    class OrderStatus {
+        <<enumeration>>
+        CREATED
+        IN_TRANSIT
+        DELIVERED
+        CANCELLED
+        INCIDENT
+    }
+
+    class CreateOrderUseCase {
+        -OrderRepositoryPort orderRepository
+        -EventPublisherPort eventPublisher
+        +execute(dto: CreateOrderDto) Promise~Order~
+        +getAllOrders() Promise~Order[]~
+        +seed5Orders() Promise~Order[]~
+    }
+
+    class UpdateOrderStatusUseCase {
+        -OrderRepositoryPort orderRepository
+        -EventPublisherPort eventPublisher
+        +execute(id: string, newStatus: OrderStatus) Promise~Order~
+    }
+
+    class OrderRepositoryPort {
+        <<interface>>
+        +save(order: Order) Promise~void~
+        +findById(id: string) Promise~Order|null~
+        +findByTrackingNumber(trackingNumber: string) Promise~Order|null~
+        +findAll() Promise~Order[]~
+    }
+
+    class EventPublisherPort {
+        <<interface>>
+        +publish(pattern: string, payload: any) Promise~void~
+    }
+
+    Order "1" *-- "1" OrderStatus
+    CreateOrderUseCase --> OrderRepositoryPort
+    CreateOrderUseCase --> EventPublisherPort
+    UpdateOrderStatusUseCase --> OrderRepositoryPort
+    UpdateOrderStatusUseCase --> EventPublisherPort
+```
+
+---
+
+## 🎨 5. Patrones de Diseño & Buenas Prácticas
+
+1. **Domain-Driven Design (DDD) Light & Domain Entities**:
+   - La entidad `Order` contiene validaciones de dominio y encapsulamiento.
+   - Implementa `toJSON()` explícito para evitar problemas de serialización de atributos privados (`_status`) al ser transmitidos en respuestas HTTP JSON.
+2. **Repository Pattern**:
+   - `OrderRepositoryPort` define el contrato de persistencia sin acoplamiento a SQL o TypeORM.
+3. **Event-Driven Architecture (EDA)**:
+   - Publicación asíncrona de eventos de dominio (`order.created`, `order.status_updated`) a través de `EventPublisherPort`.
+4. **Dependency Inversion Principle (DIP)**:
+   - Uso de NestJS `Custom Providers` mediante `Symbol` o `tokens` (`ORDER_REPOSITORY_PORT`, `EVENT_PUBLISHER_PORT`) para inyectar adaptadores en tiempo de ejecución.
+5. **DTO Validation & Data Sanitization**:
+   - Decoradores de `class-validator` y `class-transformer` para validar el payload de entrada de forma estricta.
+
+---
+
+## 🗄️ 6. Esquema de Base de Datos (PostgreSQL)
+
+Mapeo de la entidad ORM `OrderOrmEntity` en la tabla **`orders`**:
 
 | Columna | Tipo SQL | Restricciones | Descripción |
 |---|---|---|---|
-| `id` | `UUID` | PRIMARY KEY | Identificador único universal de la orden |
-| `trackingNumber` | `VARCHAR` | UNIQUE, NOT NULL | Código de seguimiento (ej. `TRK-849201`) |
-| `merchantId` | `VARCHAR` | NOT NULL | ID del cliente/comercio solicitante |
-| `originAddress` | `VARCHAR` | NOT NULL | Dirección física de origen |
-| `destinationAddress` | `VARCHAR` | NOT NULL | Dirección física de destino |
-| `price` | `DECIMAL(10,2)` | NOT NULL | Monto del despacho |
-| `status` | `VARCHAR` | NOT NULL | Estado: `CREATED`, `IN_TRANSIT`, `DELIVERED`, `INCIDENT` |
-| `createdAt` | `TIMESTAMP` | DEFAULT `now()` | Fecha de creación |
-| `updatedAt` | `TIMESTAMP` | DEFAULT `now()` | Fecha de última actualización |
+| `id` | `UUID` | PRIMARY KEY | Identificador universal de la orden |
+| `trackingNumber` | `VARCHAR(50)` | UNIQUE, NOT NULL | Código de seguimiento (ej. `TRK-100001`) |
+| `merchantId` | `VARCHAR(100)` | NOT NULL | Identificador del comercio solicitante |
+| `originAddress` | `VARCHAR(255)` | NOT NULL | Dirección física de origen |
+| `destinationAddress` | `VARCHAR(255)` | NOT NULL | Dirección física de destino |
+| `price` | `DECIMAL(10,2)` | NOT NULL | Precio/Costo del despacho en CLP/USD |
+| `status` | `VARCHAR(50)` | NOT NULL | Estado actual de la orden |
+| `createdAt` | `TIMESTAMP` | DEFAULT `now()` | Fecha y hora de creación |
+| `updatedAt` | `TIMESTAMP` | DEFAULT `now()` | Fecha y hora de última actualización |
 
 ---
 
-## 📡 ESPECIFICACIÓN DE ENDPOINTS (API REST)
+## 📡 7. Especificación de Endpoints REST API
 
 Base URL: `http://localhost:3001`
 
-### 1. Poblar Base de Datos (Seeder)
-* **POST** `/orders/seed`
-* **Descripción:** Genera e inserta 5 órdenes de prueba realistas con distintos estados en PostgreSQL.
-
-### 2. Listar todas las órdenes
-* **GET** `/orders`
-
-### 3. Crear una nueva orden
-* **POST** `/orders`
-* **Body:**
+### 1. Sembrar Órdenes de Demostración (`POST /orders/seed`)
+- **Descripción:** Genera e inserta 5 órdenes de prueba con tracking numbers deterministas (`TRK-100001` a `TRK-100005`) en PostgreSQL y publica los eventos `order.created`.
+- **Response `201 Created`**:
 ```json
-{
-  "merchantId": "merchant-123",
-  "originAddress": "Av. Providencia 1234, Santiago",
-  "destinationAddress": "Av. Apoquindo 5678, Las Condes",
-  "price": 15000
-}
+[
+  {
+    "id": "c1f7b80a-9d21-4f3b-821a-429a1b029311",
+    "trackingNumber": "TRK-100001",
+    "merchantId": "merchant-alpha",
+    "originAddress": "Av. Providencia 1234, Santiago",
+    "destinationAddress": "Av. Apoquindo 5678, Las Condes",
+    "price": 15000,
+    "status": "CREATED",
+    "createdAt": "2026-09-13T18:00:00.000Z",
+    "updatedAt": "2026-09-13T18:00:00.000Z"
+  }
+]
 ```
 
-### 4. Obtener orden por ID
-* **GET** `/orders/:id`
+### 2. Listar Todas las Órdenes (`GET /orders`)
+- **Response `200 OK`**: Retorna el listado completo de órdenes registradas.
 
-### 5. Actualizar estado de una orden
-* **PATCH** `/orders/:id/status`
+### 3. Crear Nueva Orden (`POST /orders`)
+- **Request Body**:
+```json
+{
+  "merchantId": "merchant-beta",
+  "originAddress": "Av. Matta 500, Santiago",
+  "destinationAddress": "Av. Grecia 1200, Ñuñoa",
+  "price": 18500
+}
+```
+- **Response `201 Created`**: Retorna la entidad `Order` creada.
+
+### 4. Obtener Orden por ID (`GET /orders/:id`)
+- **Response `200 OK`**: Retorna el objeto de la orden solicitada.
+- **Response `404 Not Found`**: `{ "statusCode": 404, "message": "Order with ID ... not found" }`
+
+### 5. Actualizar Estado de Orden (`PATCH /orders/:id/status`)
+- **Request Body**:
+```json
+{
+  "status": "IN_TRANSIT"
+}
+```
+- **Response `200 OK`**: Retorna la orden actualizada y emite el evento `order.status_updated`.
 
 ---
 
-## 🔔 Eventos Publicados en RabbitMQ
+## 🔔 8. Eventos Publicados en RabbitMQ
 
-| Event Pattern | Payload | Descripción |
+| Event Pattern | Trigger | Payload JSON Schema |
 |---|---|---|
-| `order.created` | `{ orderId, trackingNumber, merchantId, status, timestamp }` | Emitido al crear una orden. |
-| `order.status_updated` | `{ orderId, trackingNumber, status, updatedAt }` | Emitido al cambiar de estado. |
+| `order.created` | Creación de orden o ejecucion de seeder | `{ "orderId": string, "trackingNumber": string, "merchantId": string, "status": string, "timestamp": string }` |
+| `order.status_updated` | Cambio de estado de una orden | `{ "orderId": string, "trackingNumber": string, "status": string, "updatedAt": string }` |
 
 ---
 
-## 🛠️ Ejecución Local
+## 🧪 9. Estrategia de Testing & Cobertura
 
+Suite de pruebas desarrollada con **Jest** y `@nestjs/testing`:
+
+### 📊 Cobertura Actual:
+* **Resultados**: **9/9 Test Suites Pasadas**, **31/31 Tests Completados (100% Pass)**.
+
+### 🔬 Desglose de Archivos de Prueba:
+- `test/unit/domain/entities/order.entity.spec.ts`: Pruebas de reglas de negocio y transiciones de estado.
+- `test/unit/domain/exceptions/order-domain.exception.spec.ts`: Excepciones personalizadas.
+- `test/unit/application/use-cases/create-order.use-case.spec.ts`: Casos de uso de creación y seeder.
+- `test/unit/application/use-cases/update-order-status.use-case.spec.ts`: Transición de estados y publicación de eventos.
+- `test/unit/application/use-cases/get-order-by-id.use-case.spec.ts`: Consultas de lectura.
+- `test/unit/infrastructure/persistence/mappers/order.mapper.spec.ts`: Mapeo ORM $\leftrightarrow$ Domain.
+- `test/unit/infrastructure/persistence/adapters/typeorm-order-repository.adapter.spec.ts`: Persistencia aislada con Mocks de TypeORM Repository.
+- `test/unit/infrastructure/messaging/adapters/rabbitmq-event-publisher.adapter.spec.ts`: Emisión AMQP con Mocks de NestJS `ClientProxy`.
+- `test/unit/infrastructure/http/controllers/order.controller.spec.ts`: Capa de entrada HTTP REST.
+
+### 🛠️ Comandos de Prueba:
 ```bash
-pnpm start:dev
+# Ejecutar pruebas unitarias
+pnpm test
+
+# Generar reporte de cobertura de código
+pnpm test:cov
 ```

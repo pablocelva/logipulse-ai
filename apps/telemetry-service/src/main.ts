@@ -14,8 +14,14 @@ async function bootstrap() {
     }),
   );
 
-  // Habilitar CORS para WebSockets
-  app.enableCors();
+  // Habilitar CORS restrictivo para el origen del Dashboard Web
+  const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
+  app.enableCors({
+    origin: corsOrigin.split(','),
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+  });
 
   // Conectar como microservicio Consumidor de RabbitMQ
   app.connectMicroservice({

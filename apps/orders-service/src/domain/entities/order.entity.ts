@@ -53,4 +53,18 @@ export class Order {
   private touch(): void {
     this.updatedAt = new Date();
   }
+
+  public toJSON() {
+    return {
+      id: this.id,
+      trackingNumber: this.trackingNumber,
+      merchantId: this.merchantId,
+      originAddress: this.originAddress,
+      destinationAddress: this.destinationAddress,
+      price: this.price,
+      status: this._status,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+    };
+  }
 }

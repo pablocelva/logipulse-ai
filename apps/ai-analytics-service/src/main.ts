@@ -23,7 +23,13 @@ async function bootstrap() {
     }),
   );
 
-  app.enableCors();
+  const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
+  app.enableCors({
+    origin: corsOrigin.split(','),
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+  });
 
   app.connectMicroservice({
     transport: Transport.RMQ,

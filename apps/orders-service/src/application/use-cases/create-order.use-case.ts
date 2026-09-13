@@ -63,9 +63,10 @@ export class CreateOrderUseCase {
     ];
 
     const createdOrders: Order[] = [];
+    let index = 1;
 
     for (const item of sampleOrders) {
-      const trackingNumber = `TRK-${Math.floor(100000 + Math.random() * 900000)}`;
+      const trackingNumber = `TRK-10000${index++}`;
       const now = new Date();
 
       const order = new Order(

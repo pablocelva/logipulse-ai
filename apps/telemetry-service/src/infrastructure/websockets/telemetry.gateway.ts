@@ -10,8 +10,10 @@ import { RecordLocationUseCase } from '../../application/use-cases/record-locati
 import { RecordLocationDto } from '../../application/dtos/record-location.dto';
 
 @WebSocketGateway({
-  cors: { origin: '*' },
-  namespace: 'telemetry',
+  cors: {
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    credentials: true,
+  },
 })
 export class TelemetryGateway {
   @WebSocketServer()
