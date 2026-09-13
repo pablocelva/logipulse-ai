@@ -1,0 +1,16 @@
+{
+  "name": "logipulse-ai-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:orders": "pnpm run start:dev --workspace=apps/orders-service",
+    "dev:telemetry": "pnpm run start:dev --workspace=apps/telemetry-service",
+    "dev:ai": "pnpm run start:dev --workspace=apps/ai-analytics-service",
+    "dev:web": "pnpm run dev --workspace=apps/web",
+    "build:all": "pnpm run build --workspaces"
+  }
+}

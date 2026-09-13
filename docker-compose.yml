@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # 1. Base de Datos Relacional (PostgreSQL)
+  postgres:
+    image: postgres:16-alpine
+    container_name: logipulse_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: logipulse_user
+      POSTGRES_PASSWORD: logipulse_secret
+      POSTGRES_DB: logipulse_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U logipulse_user -d logipulse_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 2. Base de Datos NoSQL (MongoDB)
+  mongodb:
+    image: mongo:7.0
+    container_name: logipulse_mongodb
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: mongo_secret
+      MONGO_INITDB_DATABASE: logipulse_telemetry
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  # 3. Message Broker (RabbitMQ para Microservicios)
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: logipulse_rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"    # AMQP protocol
+      - "15672:15672"  # Dashboard web de RabbitMQ
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  mongo_data:
