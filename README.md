@@ -91,7 +91,8 @@ logipulse-ai/
 
 Para consultar el detalle técnico profundo de la arquitectura, esquemas de BD y endpoints de cada servicio:
 
-* 📖 **[Microservicio de Órdenes (orders-service)](/apps/orders-service/README.md)**: Documentación completa del microservicio relacional en NestJS.
+* 📦 **[Microservicio de Órdenes (orders-service)](/apps/orders-service/README.md)**: Documentación completa del microservicio relacional en NestJS + PostgreSQL + TypeORM.
+* 📍 **[Microservicio de Telemetría GPS (telemetry-service)](/apps/telemetry-service/README.md)**: Documentación completa del microservicio NoSQL en NestJS + MongoDB + WebSockets (Socket.io) + RabbitMQ Consumer.
 
 ---
 
@@ -117,23 +118,31 @@ docker-compose up -d
 * **MongoDB:** `localhost:27017` (DB: `logipulse_telemetry`)
 * **RabbitMQ Dashboard:** `http://localhost:15672` (User: `guest`, Pass: `guest`)
 
-### 3. Iniciar el Microservicio de Órdenes en desarrollo:
+### 3. Iniciar Microservicios en desarrollo:
 ```bash
+# Terminal 1: Servicio de Órdenes (Puerto 3001)
 pnpm dev:orders
+
+# Terminal 2: Servicio de Telemetría (Puerto 3002)
+pnpm dev:telemetry
 ```
 
 ---
 
 ## 🧪 Pruebas y Seeders de Demostración
 
-Una vez que `orders-service` esté corriendo en el puerto `3001`:
-
 ```bash
-# 1. Poblar la base de datos PostgreSQL con 5 órdenes reales usando el Seeder
+# 1. Poblar PostgreSQL con 5 órdenes reales
 curl -X POST http://localhost:3001/orders/seed
 
-# 2. Consultar todas las órdenes registradas
+# 2. Consultar todas las órdenes registradas en Postgres
 curl http://localhost:3001/orders
+
+# 3. Poblar 5 coordenadas GPS de ruta para la orden TRK-771022 en MongoDB
+curl -X POST http://localhost:3002/telemetry/seed/TRK-771022
+
+# 4. Consultar el historial de ruta GPS almacenado en MongoDB
+curl http://localhost:3002/telemetry/tracking/TRK-771022
 ```
 
 ---
