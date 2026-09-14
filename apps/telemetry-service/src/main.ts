@@ -1,10 +1,13 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { Transport } from '@nestjs/microservices';
+import * as cookieParser from 'cookie-parser';
 import { TelemetryModule } from './telemetry.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(TelemetryModule);
+
+  app.use(cookieParser());
 
   app.useGlobalPipes(
     new ValidationPipe({
