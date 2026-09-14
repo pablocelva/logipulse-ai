@@ -34,23 +34,29 @@ Este proyecto ha sido diseñado bajo los estándares más exigentes de ingenier�
                                │           Next.js 14+ Frontend          │
                                │     (App Router, Leaflet, React)        │
                                └────────────────────┬────────────────────┘
-                                                    │ REST / WebSockets
+                                                    │ REST / WebSockets / Auth Cookie
                                                     ▼
                                ┌─────────────────────────────────────────┐
                                │             API Gateway                 │
-                               └────────┬──────────────────────┬─────────┘
-                                        │                      │
-                                        ▼                      ▼
-                     ┌───────────────────────┐    ┌───────────────────────┐
-                     │    orders-service     │    │   telemetry-service   │
-                     │ (NestJS + PostgreSQL) │    │  (NestJS + Mongo + WS)│
-                     └──────────┬────────────┘    └──────────┬────────────┘
-                                │                            │
-                                ▼ RabbitMQ Events            ▼
-                     ┌────────────────────────────────────────────┐
-                     │            ai-analytics-service            │
-                     │       (Groq Cloud API + Tavily)            │
-                     └────────────────────────────────────────────┘
+                               └───────┬────────────┬─────────────┬──────┘
+                                       │            │             │
+                                       ▼            │             ▼
+                    ┌──────────────────────┐        │  ┌──────────────────────┐
+                    │     auth-service     │        │  │   telemetry-service  │
+                    │  (NestJS + JWT/Bcrypt│        │  │ (NestJS + Mongo + WS)│
+                    │    + HttpOnly Cookie)│        │  └──────────┬───────────┘
+                    └──────────────────────┘        │             │
+                                                    ▼             │
+                                       ┌──────────────────────┐   │
+                                       │    orders-service    │   │
+                                       │(NestJS + PostgreSQL) │   │
+                                       └──────────┬───────────┘   │
+                                                  │               │
+                                                  ▼ RabbitMQ Events
+                                       ┌──────────────────────────┐
+                                       │   ai-analytics-service   │
+                                       │(Groq Cloud API + Tavily) │
+                                       └──────────────────────────┘
 ```
 
 ---
@@ -61,6 +67,7 @@ Este proyecto ha sido diseñado bajo los estándares más exigentes de ingenier�
 logipulse-ai/
 ├── .github/workflows/          # 🔄 Pipeline CI/CD GitHub Actions (ci.yml)
 ├── apps/
+│   ├── auth-service/            # 🔐 Microservicio de Autenticación & Usuarios (NestJS + PostgreSQL + JWT + Cookie HttpOnly + Bcrypt + Jest)
 │   ├── orders-service/          # 📦 Microservicio de Órdenes (PostgreSQL + REST + RabbitMQ + Dockerfile + Jest)
 │   ├── telemetry-service/       # 📍 Microservicio de Telemetría GPS (MongoDB + WebSockets + Dockerfile + Jest)
 │   ├── ai-analytics-service/    # 🤖 Microservicio de IA (Groq Cloud API + Tavily API + Dockerfile + Jest)
@@ -84,10 +91,11 @@ logipulse-ai/
 
 Para consultar diagramas UML, esquemas de bases de datos, especificación de endpoints y cobertura de pruebas de cada servicio:
 
+* 🔐 **[Microservicio de Autenticación (auth-service)](/apps/auth-service/README.md)**: Documentación completa del microservicio de autenticación, persistencia en PostgreSQL (`logipulse_auth_db`), JWT HttpOnly cookies, RBAC (`ADMIN`, `DISPATCHER`, `DRIVER`) y Bcrypt hashing.
 * 📦 **[Microservicio de Órdenes (orders-service)](/apps/orders-service/README.md)**: Documentación completa del microservicio transaccional en NestJS + PostgreSQL + TypeORM + Eventos RabbitMQ + Diagramas UML.
 * 📍 **[Microservicio de Telemetría GPS (telemetry-service)](/apps/telemetry-service/README.md)**: Documentación completa del microservicio NoSQL en NestJS + MongoDB + Gateways de WebSockets (Socket.io) + Ingestión de Rutas Geográficas + Diagramas UML.
 * 🤖 **[Microservicio de IA (ai-analytics-service)](/apps/ai-analytics-service/README.md)**: Documentación completa del microservicio de IA en NestJS + Groq Cloud API (`groq/compound-mini`) + Tavily Search API + Diagnóstico de Incidentes + Diagramas UML.
-* 💻 **[Frontend Web (apps/web)](/apps/web/README.md)**: Aplicación Dashboard en Next.js 14+ (App Router), React, Tailwind CSS, Mapa Interactivo de Flotas (Leaflet), WebSockets Client, MSW Network Mocking, Jest Tests y Playwright E2E Tests.
+* 💻 **[Frontend Web (apps/web)](/apps/web/README.md)**: Aplicación Dashboard en Next.js 14+ (App Router), React, Tailwind CSS, Autenticación JWT, Vistas Adaptativas por Rol (`DriverCockpit`), Mapa Interactivo de Flotas (Leaflet), WebSockets Client, MSW Network Mocking, Jest Tests y Playwright E2E Tests.
 * 🗺️ **[Roadmap y Fases de Desarrollo del Proyecto](/docs/PROJECT_ROADMAP.md)**: Registro del backlog de funcionalidades para futuras iteraciones (Fases 2, 3 y 4).
 * ⚙️ **[Guía de Configuración TypeScript y Advertencias IDE](/docs/TYPESCRIPT_CONFIG.md)**: Documento técnico detallando el comportamiento de `tsconfig.json`, `baseUrl` y `target: "es5"` en el servidor de lenguaje de TypeScript 5+.
 
@@ -99,30 +107,34 @@ El monorepo cuenta con una suite completa de pruebas unitarias automatizadas des
 
 | Servicio / Aplicación | Test Suites | Tests Totales | Cobertura / Estado |
 |---|---|---|---|
-| 📦 **`orders-service`** | 11 / 11 | 36 / 36 | 🟢 100% Pass |
-| 📍 **`telemetry-service`** | 9 / 9 | 20 / 20 | 🟢 100% Pass |
+| 🔐 **`auth-service`** | 5 / 5 | 14 / 14 | 🟢 100% Pass |
+| 📦 **`orders-service`** | 11 / 11 | 38 / 38 | 🟢 100% Pass |
+| 📍 **`telemetry-service`** | 9 / 9 | 22 / 22 | 🟢 100% Pass |
 | 🤖 **`ai-analytics-service`** | 4 / 4 | 8 / 8 | 🟢 100% Pass |
 | 💻 **`web` (Frontend)** | 4 / 4 | 9 / 9 | 🟢 100% Pass |
-| **TOTAL MONOREPO** | **28 / 28** | **73 / 73** | **🟢 100% PASS** |
+| **TOTAL MONOREPO** | **33 / 33** | **91 / 91** | **🟢 100% PASS** |
 
 ### 🛠️ Comandos de Prueba:
 ```bash
-# 1. Ejecutar pruebas unitarias de Órdenes
+# 1. Ejecutar pruebas unitarias de Autenticación
+pnpm test:auth
+
+# 2. Ejecutar pruebas unitarias de Órdenes
 pnpm test:orders
 
-# 2. Ejecutar pruebas unitarias de Telemetría
+# 3. Ejecutar pruebas unitarias de Telemetría
 pnpm test:telemetry
 
-# 3. Ejecutar pruebas unitarias de IA
+# 4. Ejecutar pruebas unitarias de IA
 pnpm test:ai
 
-# 4. Ejecutar pruebas unitarias del Frontend Web (apps/web)
+# 5. Ejecutar pruebas unitarias del Frontend Web (apps/web)
 pnpm --filter @logipulse/web test
 
-# 5. Ejecutar TODAS las pruebas del Monorepo
+# 6. Ejecutar TODAS las pruebas del Monorepo
 pnpm test:all
 
-# 6. Generar reporte completo de cobertura de código
+# 7. Generar reporte completo de cobertura de código
 pnpm test:cov
 ```
 
@@ -148,10 +160,11 @@ pnpm install
 docker-compose up -d
 
 # Paso 2: Iniciar Microservicios en Terminales independientes
-pnpm dev:orders       # Puerto 3001
-pnpm dev:telemetry    # Puerto 3002
-pnpm dev:ai           # Puerto 3003
-pnpm --filter @logipulse/web dev  # Puerto 3000
+pnpm dev:auth         # Puerto 3004 (Autenticación & Usuarios)
+pnpm dev:orders       # Puerto 3001 (Órdenes y Transacciones)
+pnpm dev:telemetry    # Puerto 3002 (Telemetría GPS & WebSockets)
+pnpm dev:ai           # Puerto 3003 (IA Analytics & Diagnóstico)
+pnpm --filter @logipulse/web dev  # Puerto 3000 (Frontend Web)
 ```
 
 ### 3. Iniciar en Modo Producción (Pila Completa en Docker Compose):

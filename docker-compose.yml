@@ -14,6 +14,7 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-auth-db.sql:/docker-entrypoint-initdb.d/init-auth-db.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U logipulse_user -d logipulse_db"]
       interval: 10s

@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "dev:auth": "pnpm --filter @logipulse/auth-service start:dev",
     "dev:orders": "pnpm --filter @logipulse/orders-service start:dev",
     "dev:telemetry": "pnpm --filter @logipulse/telemetry-service start:dev",
     "dev:ai": "pnpm --filter @logipulse/ai-analytics-service start:dev",
     "dev:web": "pnpm --filter @logipulse/web dev",
+    "test:auth": "pnpm --filter @logipulse/auth-service test",
     "test:orders": "pnpm --filter @logipulse/orders-service test",
     "test:telemetry": "pnpm --filter @logipulse/telemetry-service test",
     "test:ai": "pnpm --filter @logipulse/ai-analytics-service test",
