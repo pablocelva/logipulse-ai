@@ -3,10 +3,11 @@
 import React, { useState } from 'react';
 import { Order, OrderStatus } from '../types';
 import { Package, PlusCircle, Play, CheckCircle2, Clock, AlertTriangle, Search, Filter, Eye, PackagePlus } from 'lucide-react';
+import OrderStatusBadge from './OrderStatusBadge';
 
 interface OrdersListProps {
   orders: Order[];
-  onSeedOrders: () => void;
+  onSeedOrders?: () => void;
   onSimulateTelemetry: (trackingNumber: string) => void;
   onOpenCreateOrderModal?: () => void;
   onSelectVehicle?: (trackingNumber: string, order?: Order) => void;
@@ -23,50 +24,6 @@ export default function OrdersList({
 }: OrdersListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
-
-  const getStatusBadge = (status: OrderStatus | string) => {
-    const s = String(status || '').toUpperCase();
-    if (s.includes('CREATE') || s.includes('CREAD')) {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-900/40 text-blue-300 border border-blue-700/50">
-          <Clock className="w-3 h-3 mr-1" /> Creada
-        </span>
-      );
-    }
-    if (s.includes('TRANSIT')) {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-900/40 text-amber-300 border border-amber-700/50 animate-pulse">
-          <Play className="w-3 h-3 mr-1" /> En Tránsito
-        </span>
-      );
-    }
-    if (s.includes('DELIVER') || s.includes('ENTREGAD')) {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-900/40 text-emerald-300 border border-emerald-700/50">
-          <CheckCircle2 className="w-3 h-3 mr-1" /> Entregada
-        </span>
-      );
-    }
-    if (s.includes('CANCEL')) {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-900/40 text-red-300 border border-red-700/50">
-          <AlertTriangle className="w-3 h-3 mr-1" /> Cancelada
-        </span>
-      );
-    }
-    if (s.includes('INCIDENT')) {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-950 text-red-400 border border-red-800 animate-pulse font-bold">
-          <AlertTriangle className="w-3 h-3 mr-1 text-red-400" /> INCIDENTE VIA
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700">
-        {status || 'Creada'}
-      </span>
-    );
-  };
 
   const filteredOrders = orders.filter((order) => {
     const term = searchTerm.toLowerCase();
@@ -110,14 +67,16 @@ export default function OrdersList({
             </button>
           )}
 
-          <button
-            onClick={onSeedOrders}
-            disabled={isLoading}
-            className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg bg-sky-600 hover:bg-sky-500 text-white transition-colors disabled:opacity-50 shadow-sm"
-          >
-            <PlusCircle className="w-4 h-4 mr-1.5" />
-            Sembrar 5 Órdenes
-          </button>
+          {onSeedOrders && (
+            <button
+              onClick={onSeedOrders}
+              disabled={isLoading}
+              className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg bg-sky-600 hover:bg-sky-500 text-white transition-colors disabled:opacity-50 shadow-sm"
+            >
+              <PlusCircle className="w-4 h-4 mr-1.5" />
+              Sembrar 5 Órdenes
+            </button>
+          )}
         </div>
       </div>
 
@@ -167,7 +126,7 @@ export default function OrdersList({
               <tr>
                 <td colSpan={5} className="text-center py-8 text-slate-500 text-xs">
                   {orders.length === 0
-                    ? 'No hay órdenes registradas. Haz clic en "+ Nueva Orden" o "Sembrar 5 Órdenes" para iniciar.'
+                    ? 'No hay órdenes registradas. Haz clic en "+ Nueva Orden" para iniciar.'
                     : 'No se encontraron órdenes que coincidan con la búsqueda o filtro.'}
                 </td>
               </tr>
@@ -177,7 +136,9 @@ export default function OrdersList({
                   <td className="px-4 py-3 font-mono font-medium text-sky-400">{order.trackingNumber}</td>
                   <td className="px-4 py-3 font-medium text-slate-200">{order.customerName || order.merchantId || 'Cliente General'}</td>
                   <td className="px-4 py-3 text-xs text-slate-400 max-w-[200px] truncate">{order.destinationAddress}</td>
-                  <td className="px-4 py-3">{getStatusBadge(order.status || (order as any)._status)}</td>
+                  <td className="px-4 py-3">
+                    <OrderStatusBadge status={order.status || (order as any)._status} />
+                  </td>
                   <td className="px-4 py-3 text-right space-x-2">
                     {onSelectVehicle && (
                       <button

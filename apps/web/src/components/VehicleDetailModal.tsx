@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { X, Navigation, Gauge, Battery, Clock, MapPin, Loader2 } from 'lucide-react';
+import OrderStatusBadge from './OrderStatusBadge';
 import { TelemetryPoint } from '../types';
 import { api } from '../lib/api-client';
 
@@ -120,15 +121,17 @@ export default function VehicleDetailModal({
               </div>
               <div>
                 <span className="text-slate-400 font-medium block">Estado Actual:</span>
-                <span className="text-sky-400 font-bold font-mono">{orderInfo.status || 'EN TRANSITO'}</span>
+                <div className="mt-0.5">
+                  <OrderStatusBadge status={orderInfo.status} />
+                </div>
               </div>
               <div>
                 <span className="text-slate-400 font-medium block">Origen:</span>
-                <span className="text-slate-300 truncate block">{orderInfo.originAddress}</span>
+                <span className="text-slate-300 truncate block">{orderInfo.originAddress || orderInfo.origin}</span>
               </div>
               <div>
                 <span className="text-slate-400 font-medium block">Destino:</span>
-                <span className="text-slate-300 truncate block">{orderInfo.destinationAddress}</span>
+                <span className="text-slate-300 truncate block">{orderInfo.destinationAddress || orderInfo.destination}</span>
               </div>
             </div>
           )}

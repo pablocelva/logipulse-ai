@@ -44,6 +44,6 @@ describe('VehicleDetailModal Component', () => {
 
     expect(await screen.findByText('TRK-100001')).toBeInTheDocument();
     expect(screen.getByText('merchant-alpha')).toBeInTheDocument();
-    expect(screen.getByText('IN_TRANSIT')).toBeInTheDocument();
+    expect(screen.getByText('En Tránsito')).toBeInTheDocument();
   });
 });

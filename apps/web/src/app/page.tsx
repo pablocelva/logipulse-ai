@@ -1,18 +1,23 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
+import Link from 'next/link';
 import FleetMap from '../components/FleetMap';
 import OrdersList from '../components/OrdersList';
 import AiIncidentCard from '../components/AiIncidentCard';
 import CreateOrderModal from '../components/CreateOrderModal';
 import VehicleDetailModal from '../components/VehicleDetailModal';
+import DriverCockpit from '../components/DriverCockpit';
 import { Order, TelemetryPoint, AiIncidentResponse } from '../types';
 import { api } from '../lib/api-client';
+import { useAuth } from '../context/AuthContext';
 import { io } from 'socket.io-client';
+import { ShieldCheck, LogIn, Lock, Sparkles } from 'lucide-react';
 
 const TELEMETRY_WS_URL = process.env.NEXT_PUBLIC_TELEMETRY_WS || 'http://localhost:3002';
 
 export default function DashboardPage() {
+  const auth = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [telemetry, setTelemetry] = useState<TelemetryPoint[]>([]);
   const [aiDiagnosis, setAiDiagnosis] = useState<AiIncidentResponse | null>(null);
@@ -67,47 +72,48 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    fetchOrders();
+    if (auth.isAuthenticated) {
+      fetchOrders();
 
-    // Connect to WebSocket Gateway on telemetry-service
-    const socket = io(TELEMETRY_WS_URL, {
-      transports: ['websocket'],
-    });
-
-    socket.on('connect', () => {
-      console.log('⚡ Conectado al Gateway de Telemetría WebSockets');
-    });
-
-    socket.on('telemetry_updated', (data: TelemetryPoint) => {
-      console.log('📍 Evento GPS recibido:', data);
-      setTelemetry((prev) => {
-        const index = prev.findIndex((t) => t.trackingNumber === data.trackingNumber);
-        if (index >= 0) {
-          const updated = [...prev];
-          updated[index] = data;
-          return updated;
-        }
-        return [...prev, data];
+      // Connect to WebSocket Gateway on telemetry-service
+      const socket = io(TELEMETRY_WS_URL, {
+        transports: ['websocket'],
       });
-    });
 
-    return () => {
-      socket.disconnect();
-    };
-  }, []);
+      socket.on('connect', () => {
+        console.log('⚡ Conectado al Gateway de Telemetría WebSockets');
+      });
+
+      socket.on('telemetry_updated', (data: TelemetryPoint) => {
+        console.log('📍 Evento GPS recibido:', data);
+        setTelemetry((prev) => {
+          const index = prev.findIndex((t) => t.trackingNumber === data.trackingNumber);
+          if (index >= 0) {
+            const updated = [...prev];
+            updated[index] = data;
+            return updated;
+          }
+          return [...prev, data];
+        });
+      });
+
+      return () => {
+        socket.disconnect();
+      };
+    }
+  }, [auth.isAuthenticated]);
 
   // Continuous Telemetry Simulation Loop
   useEffect(() => {
     if (isSimulating) {
       simulationTimerRef.current = setInterval(async () => {
         if (orders.length === 0) return;
-        // Pick a random order to simulate small GPS step
         const randomOrder = orders[Math.floor(Math.random() * orders.length)];
         if (randomOrder?.trackingNumber) {
           try {
             await api.telemetry.seed(randomOrder.trackingNumber);
           } catch (e) {
-            console.warn('Simulacion GPS error:', e);
+            console.warn('Simulación GPS error:', e);
           }
         }
       }, 2500);
@@ -259,6 +265,40 @@ export default function DashboardPage() {
     setTimeout(() => setNotification(null), 4000);
   };
 
+  // 1. Estado No Autenticado: Banner de Bloqueo e Iniciar Sesión
+  if (!auth.isAuthenticated) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center text-center px-4">
+        <div className="max-w-md bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-2xl space-y-6">
+          <div className="mx-auto w-16 h-16 bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 rounded-2xl flex items-center justify-center">
+            <Lock className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold text-white">Acceso Restringido por Rol (RBAC)</h2>
+            <p className="text-xs text-slate-400">
+              Debes iniciar sesión con tu cuenta o un rol demo (`ADMIN`, `DISPATCHER`, `DRIVER`) para acceder a las vistas y servicios de LogiPulse AI.
+            </p>
+          </div>
+          <Link
+            href="/login"
+            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs py-3 rounded-xl shadow-lg transition-all flex items-center justify-center space-x-2"
+          >
+            <LogIn className="w-4 h-4" />
+            <span>Ir a Iniciar Sesión</span>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. VISTA CONDUCTOR (DRIVER)
+  if (auth.user?.role === 'DRIVER') {
+    return <DriverCockpit driverName={auth.user.name} driverId={auth.user.id} />;
+  }
+
+  // 3. VISTAS ADMINISTRADOR (ADMIN) Y DESPACHADOR (DISPATCHER)
+  const isAdmin = auth.user?.role === 'ADMIN';
+
   return (
     <div className="space-y-6">
       {notification && (
@@ -267,6 +307,25 @@ export default function DashboardPage() {
           <button onClick={() => setNotification(null)} className="text-sky-400 font-bold ml-4">✕</button>
         </div>
       )}
+
+      {/* Banner de Rol Activo */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-md">
+        <div className="flex items-center space-x-3">
+          <div className={`p-2 rounded-xl text-xs font-bold uppercase ${
+            isAdmin ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40' : 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+          }`}>
+            {isAdmin ? '👑 ADMIN VIEW' : '📋 DISPATCHER VIEW'}
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-white">Panel de {isAdmin ? 'Administración Global' : 'Despacho & Operaciones'}</h3>
+            <p className="text-xs text-slate-400">Usuario activo: <strong className="text-slate-200">{auth.user?.name}</strong> ({auth.user?.email})</p>
+          </div>
+        </div>
+        <div className="flex items-center space-x-2 text-xs text-slate-400">
+          <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          <span>Acceso Autorizado por Token JWT</span>
+        </div>
+      </div>
 
       {/* Grid Superior: Mapa de Flotas e Incidentes de IA */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -291,7 +350,7 @@ export default function DashboardPage() {
       <div>
         <OrdersList
           orders={orders}
-          onSeedOrders={handleSeedOrders}
+          onSeedOrders={isAdmin ? handleSeedOrders : undefined}
           onSimulateTelemetry={handleSimulateTelemetry}
           onOpenCreateOrderModal={() => setIsCreateOrderOpen(true)}
           onSelectVehicle={handleSelectVehicle}

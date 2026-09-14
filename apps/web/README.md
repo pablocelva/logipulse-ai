@@ -1,7 +1,7 @@
 <div align="center">
 
 # 💻 Frontend Web Dashboard (`apps/web`)
-### *Panel de Monitoreo Logístico en Tiempo Real, Mapa de Flotas e Inteligencia Artificial*
+### *Panel de Monitoreo Logístico en Tiempo Real, Vistas por Rol (RBAC), Mapa de Flotas e Inteligencia Artificial*
 
 ![Next.js](https://img.shields.io/badge/Next.js_14+-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)
 ![React](https://img.shields.io/badge/React_18-61DAFB?style=for-the-badge&logo=react&logoColor=black)
@@ -20,36 +20,46 @@
 
 El **`apps/web`** es el cliente web frontend principal de **LogiPulse AI**, desarrollado sobre **Next.js 14+ (App Router)** y **Tailwind CSS**.
 
-Proporciona una consola de control operativa en tiempo real para despachadores y supervisores de logística con:
-1. **🗺️ Mapa Interactivo de Flota (Leaflet + OpenStreetMap)**: Visualización, auto-encuadre (`fitBounds`) y trazado de ruta histórica (`Polyline`) de camionetas en Chile.
-2. **⚡ Simulador de Flota en Vivo & WebSockets (`socket.io-client`)**: Transmisión periódica cada 2.5s simulando movimiento fluido de vehículos a lo largo de las carreteras.
-3. **📦 Gestión de Órdenes & Modales Interactivas**: Tabla dinámica con búsqueda en vivo, filtro por estado (`CREATED`, `IN_TRANSIT`, `DELIVERED`, `INCIDENT`), modal de creación de órdenes y modal de detalle con mapa de ruta.
-4. **🤖 Panel de Diagnósticos de IA**: Alertas operativas generadas por Groq Cloud LLMs y Tavily Web Search.
+Proporciona una consola de control operativa en tiempo real para administradores, despachadores y conductores con:
+1. **🔑 Autenticación & Vistas por Rol (RBAC)**: Manejo global del estado de sesión con `AuthContext`, protección de rutas con Next.js Middleware y vistas diferenciadas para `ADMIN`, `DISPATCHER` y `DRIVER`.
+2. **🚛 Cabina del Conductor (`DriverCockpit`)**: Vista exclusiva para conductores con emisión de puntos GPS en tiempo real a `telemetry-service` y actualización de estado en la base de datos PostgreSQL de `orders-service` (`IN_TRANSIT`, `DELIVERED`).
+3. **🎨 Insignias de Estado Unificadas (`OrderStatusBadge`)**: Componetización visual homogénea de pills animados para estados (`Creada`, `En Tránsito`, `Entregada`, `Incidente en Vía`).
+4. **🗺️ Mapa Interactivo de Flota (Leaflet + OpenStreetMap)**: Visualización, auto-encuadre (`fitBounds`) y trazado de ruta histórica (`Polyline`) de camionetas.
+5. **⚡ Simulador de Flota en Vivo & WebSockets (`socket.io-client`)**: Transmisión periódica cada 2.5s simulando movimiento fluido de vehículos.
+6. **🤖 Panel de Diagnósticos de IA**: Alertas operativas generadas por Groq Cloud LLMs y Tavily Web Search.
 
 ---
 
 ## 📂 2. Estructura de Directorios & Arquitectura de Carpetas
-
-A continuación se detalla la estructura física del código fuente en `src/`:
 
 ```text
 apps/web/
 ├── src/
 │   ├── app/                                    # 🚀 NEXT.JS APP ROUTER
 │   │   ├── globals.css                         # Tailwind CSS global import & Leaflet map custom styles
-│   │   ├── layout.tsx                          # Root Layout con Header global e indicadores de WS/AI
-│   │   └── page.tsx                            # Dashboard Principal (Conexión WS, Simulador en Vivo, Grid 3 columnas)
+│   │   ├── layout.tsx                          # Root Layout envuelto en AuthProvider con Header global
+│   │   ├── login/
+│   │   │   └── page.tsx                        # Página dedicada de Login con accesos rápidos 1-click por rol
+│   │   └── page.tsx                            # Dashboard Principal con renderizado adaptativo por rol
+│   │
+│   ├── context/
+│   │   └── AuthContext.tsx                     # Contexto global de sesión (user, role, login, logout, me)
+│   │
+│   ├── middleware.ts                           # Middleware de Next.js para protección de rutas
 │   │
 │   ├── components/                             # 🧱 COMPONENTES DE INTERFAZ REACT
-│   │   ├── FleetMap.tsx                        # Contenedor Leaflet MapContainer, Marcadores y botón de Simulador en Vivo
+│   │   ├── DriverCockpit.tsx                   # Cabina del conductor (emisión GPS + actualización de estado)
+│   │   ├── OrderStatusBadge.tsx                # Insignias visuales unificadas de estado
+│   │   ├── FleetMap.tsx                        # Contenedor Leaflet MapContainer, Marcadores y Simulador
 │   │   ├── MapAutoRecenter.tsx                 # Dynamic bounds fitter mediante useMap() de Leaflet
-│   │   ├── OrdersList.tsx                      # Tabla de despachos, barra de búsqueda en vivo y selector de filtros
+│   │   ├── OrdersList.tsx                      # Tabla de despachos con insignias unificadas y búsqueda en vivo
 │   │   ├── VehicleDetailModal.tsx              # Modal emergente con mapa Leaflet Polyline y métricas del vehículo
-│   │   ├── CreateOrderModal.tsx                # Modal con formulario controlado para enviar nuevas órdenes
+│   │   ├── CreateOrderModal.tsx                # Modal con formulario controlled para enviar nuevas órdenes
+│   │   ├── LoginModal.tsx                      # Modal interactivo de autenticación JWT
 │   │   └── AiIncidentCard.tsx                  # Tarjeta de diagnóstico de incidentes IA con severidad
 │   │
 │   ├── lib/
-│   │   └── api-client.ts                       # Cliente HTTP Nativo (fetch wrapper) para Orders, Telemetry & AI
+│   │   └── api-client.ts                       # Cliente HTTP Nativo (fetch wrapper) para Auth, Orders, Telemetry & AI
 │   │
 │   ├── types/
 │   │   └── index.ts                            # Interfaces y DTOs TypeScript del Frontend (Order, Telemetry, etc.)
@@ -74,89 +84,89 @@ apps/web/
 
 ---
 
-## 🏛️ 3. Arquitectura de Componentes Frontend
+## 🏛️ 3. Diagrama de Componentes & Flujo RBAC
 
-```text
-                                 ┌─────────────────────────────────┐
-                                 │           App Layout            │
-                                 │      (src/app/layout.tsx)       │
-                                 └────────────────┬────────────────┘
-                                                  │
-                                                  ▼
-                                 ┌─────────────────────────────────┐
-                                 │          Dashboard Page         │
-                                 │       (src/app/page.tsx)        │
-                                 └────────┬───────┬───────┬────────┘
-                                          │       │       │
-      ┌───────────────────────────────────┘       │       └───────────────────────────────────┐
-      ▼                                           ▼                                           ▼
-┌───────────┐                               ┌───────────┐                               ┌───────────┐
-│ FleetMap  │                               │  AiCard   │                               │OrdersList │
-└─────┬─────┘                               └───────────┘                               └─────┬─────┘
-      │                                                                                       │
-      ├──────────────────────────────┐                         ┌──────────────────────────────┤
-      ▼                              ▼                         ▼                              ▼
-┌───────────┐                  ┌───────────┐             ┌───────────┐                  ┌───────────┐
-│RecenterMap│                  │VehicleDet.│             │CreateModal│                  │VehicleDet.│
-└───────────┘                  └───────────┘             └───────────┘                  └───────────┘
+```mermaid
+classDiagram
+    class RootLayout {
+        +AuthProvider authProvider
+        +Header header
+        +Main main
+    }
+
+    class AuthProvider {
+        +AuthUser user
+        +boolean isAuthenticated
+        +boolean isLoading
+        +login(email, password) Promise~void~
+        +loginAsDemo(role) Promise~void~
+        +logout() Promise~void~
+    }
+
+    class DashboardPage {
+        +useAuth auth
+        +Order[] orders
+        +TelemetryPoint[] telemetry
+        +renderRoleView() ReactNode
+    }
+
+    class DriverCockpit {
+        +string driverName
+        +string driverId
+        +handleEmitGpsLocation() Promise~void~
+        +handleUpdateStatus(newStatus) Promise~void~
+    }
+
+    class OrdersList {
+        +Order[] orders
+        +onSeedOrders() void
+        +onSimulateTelemetry() void
+    }
+
+    class FleetMap {
+        +TelemetryPoint[] telemetryData
+        +boolean isSimulating
+        +onToggleSimulation() void
+    }
+
+    class AiIncidentCard {
+        +AiIncidentResponse diagnosis
+        +onRunDemo() Promise~void~
+    }
+
+    class OrderStatusBadge {
+        +string status
+    }
+
+    RootLayout *-- AuthProvider
+    AuthProvider --> DashboardPage
+    DashboardPage ..> DriverCockpit : Role DRIVER
+    DashboardPage ..> OrdersList : Role ADMIN / DISPATCHER
+    DashboardPage ..> FleetMap : Role ADMIN / DISPATCHER
+    DashboardPage ..> AiIncidentCard : Role ADMIN / DISPATCHER
+    OrdersList ..> OrderStatusBadge
+    DriverCockpit ..> OrderStatusBadge
 ```
 
 ---
 
 ## 🎨 4. Patrones de Diseño & Buenas Prácticas Frontend
 
-1. **Next.js Dynamic Imports sin SSR para Leaflet**:
-   - `dynamic(() => import('react-leaflet'), { ssr: false })` evita errores de compilación del lado del servidor (`window is not defined`) al cargar componentes de Leaflet (`MapContainer`, `TileLayer`, `Marker`, `Polyline`) sólo en el cliente.
-2. **Cliente HTTP Nativo Tipado (`fetch`)**:
-   - Implementación de `apiClient` en [src/lib/api-client.ts](file:///d:/Programaci%C3%B3n/Wordpress/logipulse-ai/apps/web/src/lib/api-client.ts) utilizando únicamente la API nativa **`fetch`** de Next.js sin dependencias pesadas ni problemas de seguridad de Axios.
-3. **Simulador de Flota en Vivo sin Memory Leaks**:
-   - `useEffect` con limpieza adecuada de timers (`clearInterval`) garantiza que la animación en vivo no genere fugas de memoria al pausar o cambiar de vista.
-4. **Mock Service Worker (MSW) para Testing de Componentes**:
-   - Intercepción de peticiones HTTP en pruebas unitarias mediante `msw/node` para emular respuestas del backend sin depender de servicios levantados.
+1. **Gestión de Estado de Sesión en React (`AuthContext`)**:
+   - Centraliza el estado de autenticación (`user`, `role`, `isAuthenticated`), persistencia en `localStorage` y verificación activa con el backend (`GET /auth/me`).
+2. **Vistas Adaptativas basadas en Roles (RBAC UI)**:
+   - Renderizado condicional según el rol activo (`ADMIN`, `DISPATCHER`, `DRIVER`), adaptando las acciones y pantallas a cada perfil.
+3. **Componetización Visual de Insignias (`OrderStatusBadge`)**:
+   - Insignias de estado homogéneas en toda la app (`Creada`, `En Tránsito`, `Entregada`, `Incidente en Vía`).
+4. **Next.js Dynamic Imports sin SSR para Leaflet**:
+   - `dynamic(() => import('react-leaflet'), { ssr: false })` evita errores de compilación del lado del servidor (`window is not defined`) al cargar componentes de Leaflet.
 
 ---
 
-## 📡 5. Contrato del Cliente HTTP API (`api-client.ts`)
-
-```typescript
-export const api = {
-  orders: {
-    getAll: () => apiClient<Order[]>('http://localhost:3001/orders'),
-    create: (data: { merchantId: string; originAddress: string; destinationAddress: string; price: number }) =>
-      apiClient<Order>('http://localhost:3001/orders', { method: 'POST', body: JSON.stringify(data) }),
-    seed: () => apiClient<Order[]>('http://localhost:3001/orders/seed', { method: 'POST' }),
-  },
-  telemetry: {
-    getHistory: (trackingNumber: string) =>
-      apiClient<TelemetryPoint[]>(`http://localhost:3002/telemetry/tracking/${trackingNumber}`),
-    seed: (trackingNumber: string) =>
-      apiClient<TelemetryPoint[]>(`http://localhost:3002/telemetry/seed/${trackingNumber}`, { method: 'POST' }),
-    recordLocation: (data: any) =>
-      apiClient<TelemetryPoint>('http://localhost:3002/telemetry', { method: 'POST', body: JSON.stringify(data) }),
-  },
-  ai: {
-    seedDemo: () => apiClient<any>('http://localhost:3003/ai/seed-demo', { method: 'POST' }),
-  },
-};
-```
-
----
-
-## 🧪 6. Estrategia de Testing & Cobertura
-
-Suite de pruebas dividida en pruebas unitarias/componentes y pruebas End-to-End:
+## 🧪 5. Estrategia de Testing & Cobertura
 
 ### 📊 Cobertura Actual de Componentes:
-* **Resultados**: **4/4 Test Suites Pasadas**, **9/9 Tests Completados (100% Pass)**.
-
-### 🔬 Desglose de Pruebas:
-- **Unit & Component Testing (Jest + React Testing Library + MSW)**:
-  - `src/test/unit/components/OrdersList.spec.tsx`: Verifica la tabla de despachos, barra de búsqueda en vivo y filtros por estado.
-  - `src/test/unit/components/AiIncidentCard.spec.tsx`: Prueba el renderizado de diagnósticos de IA y severidades (`HIGH`, `CRITICAL`).
-  - `src/test/unit/components/CreateOrderModal.spec.tsx`: Prueba el formulario controlado de creación de órdenes.
-  - `src/test/unit/components/VehicleDetailModal.spec.tsx`: Prueba el modal de detalle de vehículo y mapa de trayectoria.
-- **End-to-End Testing (Playwright)**:
-  - `e2e/dashboard.spec.ts`: Verifica la interacción en navegador Chromium real.
+* **Resultados**: **4/4 Test Suites Pasadas**, **9/9 Tests Completados (🟢 100% Pass)**.
 
 ### 🛠️ Comandos de Prueba:
 ```bash
