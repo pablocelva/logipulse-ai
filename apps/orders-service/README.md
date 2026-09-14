@@ -18,13 +18,11 @@
 
 El **`orders-service`** es el microservicio transaccional primario del ecosistema **LogiPulse AI**. Es responsable de gestionar el ciclo de vida completo de las órdenes de despacho de carga: creación de envíos, asignación de tracking numbers, transiciones de estado de entrega (`CREATED`, `IN_TRANSIT`, `DELIVERED`, `CANCELLED`, `INCIDENT`) y auditoría de cambios.
 
-Garantiza integridad de datos **ACID** a través de **PostgreSQL** y desacopla la comunicación distribuida mediante la publicación de eventos de dominio en el broker de mensajería **RabbitMQ (AMQP)**.
+Garantiza integridad de datos **ACID** a través de **PostgreSQL** (`logipulse_db`) y desacopla la comunicación distribuida mediante la publicación de eventos de dominio en el broker de mensajería **RabbitMQ (AMQP)**.
 
 ---
 
-## 📂 2. Estructura de Directorios & Arquitectura de Carpetas
-
-A continuación se detalla la estructura física del código fuente en `src/`, organizada según la **Arquitectura Hexagonal**:
+## 📂 2. Estructura de Directorios & Arquitectura Hexagonal
 
 ```text
 apps/orders-service/
@@ -49,8 +47,12 @@ apps/orders-service/
 │   │
 │   ├── infrastructure/                         # 🔌 CAPA DE INFRAESTRUCTURA (Adapters & Frameworks)
 │   │   ├── http/
-│   │   │   └── controllers/
-│   │   │       └── order.controller.ts         # Controlador REST (@Controller('orders'))
+│   │   │   ├── controllers/
+│   │   │   │   ├── order.controller.ts         # Controlador REST (@Controller('orders'))
+│   │   │   │   └── health.controller.ts        # Diagnóstico de salud
+│   │   │   └── guards/
+│   │   │       ├── jwt-auth.guard.ts           # Guardián JWT para verificación de firma
+│   │   │       └── roles.decorator.ts          # Decorador RBAC
 │   │   ├── persistence/
 │   │   │   ├── adapters/
 │   │   │   │   └── typeorm-order-repository.adapter.ts # Adaptador TypeORM del OrderRepositoryPort
@@ -63,8 +65,7 @@ apps/orders-service/
 │   │           └── rabbitmq-event-publisher.adapter.ts # Adaptador AMQP RabbitMQ ClientProxy
 │   │
 │   ├── main.ts                                 # Bootstrap del servicio NestJS (Puerto 3001, CORS, Pipes)
-│   ├── orders.module.ts                        # Módulo NestJS con inyección de dependencias por símbolos
-│   └── tsconfig.build.json                     # Configuración de compilación TypeScript rootDir: "src"
+│   └── orders.module.ts                        # Módulo NestJS con inyección de dependencias por símbolos
 │
 └── test/                                       # 🧪 PRUEBAS UNITARIAS (Jest)
     └── unit/
@@ -77,7 +78,10 @@ apps/orders-service/
         │       ├── update-order-status.use-case.spec.ts
         │       └── get-order-by-id.use-case.spec.ts
         └── infrastructure/
-            ├── http/controllers/order.controller.spec.ts
+            ├── http/
+            │   ├── controllers/order.controller.spec.ts
+            │   ├── controllers/health.controller.spec.ts
+            │   └── guards/jwt-auth.guard.spec.ts
             ├── messaging/adapters/rabbitmq-event-publisher.adapter.spec.ts
             └── persistence/
                 ├── adapters/typeorm-order-repository.adapter.spec.ts
@@ -162,6 +166,11 @@ classDiagram
         +execute(id: string, newStatus: OrderStatus) Promise~Order~
     }
 
+    class GetOrderByIdUseCase {
+        -OrderRepositoryPort orderRepository
+        +execute(id: string) Promise~Order~
+    }
+
     class OrderRepositoryPort {
         <<interface>>
         +save(order: Order) Promise~void~
@@ -175,11 +184,27 @@ classDiagram
         +publish(pattern: string, payload: any) Promise~void~
     }
 
+    class TypeOrmOrderRepositoryAdapter {
+        -Repository~OrderOrmEntity~ repository
+        +save(order: Order) Promise~void~
+        +findById(id: string) Promise~Order|null~
+        +findByTrackingNumber(trackingNumber: string) Promise~Order|null~
+        +findAll() Promise~Order[]~
+    }
+
+    class RabbitMqEventPublisherAdapter {
+        -ClientProxy client
+        +publish(pattern: string, payload: any) Promise~void~
+    }
+
     Order "1" *-- "1" OrderStatus
     CreateOrderUseCase --> OrderRepositoryPort
     CreateOrderUseCase --> EventPublisherPort
     UpdateOrderStatusUseCase --> OrderRepositoryPort
     UpdateOrderStatusUseCase --> EventPublisherPort
+    GetOrderByIdUseCase --> OrderRepositoryPort
+    TypeOrmOrderRepositoryAdapter ..|> OrderRepositoryPort
+    RabbitMqEventPublisherAdapter ..|> EventPublisherPort
 ```
 
 ---
@@ -188,15 +213,13 @@ classDiagram
 
 1. **Domain-Driven Design (DDD) Light & Domain Entities**:
    - La entidad `Order` contiene validaciones de dominio y encapsulamiento.
-   - Implementa `toJSON()` explícito para evitar problemas de serialización de atributos privados (`_status`) al ser transmitidos en respuestas HTTP JSON.
+   - Implementa `toJSON()` explícito para evitar problemas de serialización JSON.
 2. **Repository Pattern**:
-   - `OrderRepositoryPort` define el contrato de persistencia sin acoplamiento a SQL o TypeORM.
+   - `OrderRepositoryPort` define el contrato de persistencia desacoplado de TypeORM.
 3. **Event-Driven Architecture (EDA)**:
    - Publicación asíncrona de eventos de dominio (`order.created`, `order.status_updated`) a través de `EventPublisherPort`.
 4. **Dependency Inversion Principle (DIP)**:
-   - Uso de NestJS `Custom Providers` mediante `Symbol` o `tokens` (`ORDER_REPOSITORY_PORT`, `EVENT_PUBLISHER_PORT`) para inyectar adaptadores en tiempo de ejecución.
-5. **DTO Validation & Data Sanitization**:
-   - Decoradores de `class-validator` y `class-transformer` para validar el payload de entrada de forma estricta.
+   - Uso de NestJS Custom Providers mediante símbolos (`ORDER_REPOSITORY_PORT`, `EVENT_PUBLISHER_PORT`).
 
 ---
 
@@ -211,7 +234,7 @@ Mapeo de la entidad ORM `OrderOrmEntity` en la tabla **`orders`**:
 | `merchantId` | `VARCHAR(100)` | NOT NULL | Identificador del comercio solicitante |
 | `originAddress` | `VARCHAR(255)` | NOT NULL | Dirección física de origen |
 | `destinationAddress` | `VARCHAR(255)` | NOT NULL | Dirección física de destino |
-| `price` | `DECIMAL(10,2)` | NOT NULL | Precio/Costo del despacho en CLP/USD |
+| `price` | `DECIMAL(10,2)` | NOT NULL | Precio/Costo del despacho |
 | `status` | `VARCHAR(50)` | NOT NULL | Estado actual de la orden |
 | `createdAt` | `TIMESTAMP` | DEFAULT `now()` | Fecha y hora de creación |
 | `updatedAt` | `TIMESTAMP` | DEFAULT `now()` | Fecha y hora de última actualización |
@@ -224,22 +247,6 @@ Base URL: `http://localhost:3001`
 
 ### 1. Sembrar Órdenes de Demostración (`POST /orders/seed`)
 - **Descripción:** Genera e inserta 5 órdenes de prueba con tracking numbers deterministas (`TRK-100001` a `TRK-100005`) en PostgreSQL y publica los eventos `order.created`.
-- **Response `201 Created`**:
-```json
-[
-  {
-    "id": "c1f7b80a-9d21-4f3b-821a-429a1b029311",
-    "trackingNumber": "TRK-100001",
-    "merchantId": "merchant-alpha",
-    "originAddress": "Av. Providencia 1234, Santiago",
-    "destinationAddress": "Av. Apoquindo 5678, Las Condes",
-    "price": 15000,
-    "status": "CREATED",
-    "createdAt": "2026-09-13T18:00:00.000Z",
-    "updatedAt": "2026-09-13T18:00:00.000Z"
-  }
-]
-```
 
 ### 2. Listar Todas las Órdenes (`GET /orders`)
 - **Response `200 OK`**: Retorna el listado completo de órdenes registradas.
@@ -254,11 +261,9 @@ Base URL: `http://localhost:3001`
   "price": 18500
 }
 ```
-- **Response `201 Created`**: Retorna la entidad `Order` creada.
 
 ### 4. Obtener Orden por ID (`GET /orders/:id`)
 - **Response `200 OK`**: Retorna el objeto de la orden solicitada.
-- **Response `404 Not Found`**: `{ "statusCode": 404, "message": "Order with ID ... not found" }`
 
 ### 5. Actualizar Estado de Orden (`PATCH /orders/:id/status`)
 - **Request Body**:
@@ -267,30 +272,10 @@ Base URL: `http://localhost:3001`
   "status": "IN_TRANSIT"
 }
 ```
-### 6. Health Check Endpoint (`GET /health`)
-- **Descripción:** Endpoint de diagnóstico de salud del servicio y estado de la conexión a PostgreSQL.
-- **Response `200 OK`**:
-```json
-{
-  "status": "UP",
-  "service": "orders-service",
-  "database": "PostgreSQL Connected",
-  "uptimeSeconds": 120,
-  "memoryUsageMb": 45,
-  "timestamp": "2026-09-14T15:00:00.000Z"
-}
-```
 
 ---
 
-## 🔒 8. Seguridad y Control de Acceso (JWT & RBAC)
-
-- **`JwtAuthGuard`**: Guard de autenticación JWT con soporte para bypass en entorno de desarrollo (`x-dev-bypass: true` o `NODE_ENV !== 'production'`).
-- **`@Roles(...)`**: Decorador para control de acceso basado en roles (RBAC) validando roles como `ADMIN`, `DISPATCHER`.
-
----
-
-## 🔔 9. Eventos Publicados en RabbitMQ
+## 🔔 8. Eventos Publicados en RabbitMQ
 
 | Event Pattern | Trigger | Payload JSON Schema |
 |---|---|---|
@@ -299,31 +284,6 @@ Base URL: `http://localhost:3001`
 
 ---
 
-## 🧪 10. Estrategia de Testing & Cobertura
+## 🧪 9. Estrategia de Testing & Cobertura
 
-Suite de pruebas desarrollada con **Jest** y `@nestjs/testing`:
-
-### 📊 Cobertura Actual:
-* **Resultados**: **11/11 Test Suites Pasadas**, **36/36 Tests Completados (100% Pass)**.
-
-### 🔬 Desglose de Archivos de Prueba:
-- `test/unit/domain/entities/order.entity.spec.ts`: Pruebas de reglas de negocio y transiciones de estado.
-- `test/unit/domain/exceptions/order-domain.exception.spec.ts`: Excepciones personalizadas.
-- `test/unit/application/use-cases/create-order.use-case.spec.ts`: Casos de uso de creación y seeder.
-- `test/unit/application/use-cases/update-order-status.use-case.spec.ts`: Transición de estados y publicación de eventos.
-- `test/unit/application/use-cases/get-order-by-id.use-case.spec.ts`: Consultas de lectura.
-- `test/unit/infrastructure/persistence/mappers/order.mapper.spec.ts`: Mapeo ORM $\leftrightarrow$ Domain.
-- `test/unit/infrastructure/persistence/adapters/typeorm-order-repository.adapter.spec.ts`: Persistencia aislada con Mocks de TypeORM Repository.
-- `test/unit/infrastructure/messaging/adapters/rabbitmq-event-publisher.adapter.spec.ts`: Emisión AMQP con Mocks de NestJS `ClientProxy`.
-- `test/unit/infrastructure/http/controllers/order.controller.spec.ts`: Capa de entrada HTTP REST.
-- `test/unit/infrastructure/http/controllers/health.controller.spec.ts`: Prueba del endpoint `/health` y diagnóstico de BD.
-- `test/unit/infrastructure/http/guards/jwt-auth.guard.spec.ts`: Validación de seguridad JWT y bypass de desarrollo.
-
-### 🛠️ Comandos de Prueba:
-```bash
-# Ejecutar pruebas unitarias
-pnpm test
-
-# Generar reporte de cobertura de código
-pnpm test:cov
-```
+* **Resultados**: **11/11 Test Suites Pasadas**, **38/38 Tests Completados (🟢 100% Pass)**.
