@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemetry-service-deployment
+  namespace: logipulse-ai
+  labels:
+    app: telemetry-service
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: telemetry-service
+  template:
+    metadata:
+      labels:
+        app: telemetry-service
+    spec:
+      containers:
+        - name: telemetry-service
+          image: logipulse/telemetry-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3002
+          env:
+            - name: PORT
+              value: "3002"
+            - name: MONGO_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: logipulse-config
+                  key: MONGO_URI
+            - name: RABBITMQ_URI
+              valueFrom:
+                secretKeyRef:
+                  name: logipulse-secrets
+                  key: RABBITMQ_URI
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: telemetry-service
+  namespace: logipulse-ai
+spec:
+  selector:
+    app: telemetry-service
+  ports:
+    - port: 3002
+      targetPort: 3002

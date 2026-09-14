@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-deployment
+  namespace: logipulse-ai
+  labels:
+    app: web
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: logipulse/web:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+            - name: NEXT_PUBLIC_ORDERS_API
+              value: "http://logipulse.local/api/orders"
+            - name: NEXT_PUBLIC_TELEMETRY_API
+              value: "http://logipulse.local/api/telemetry"
+            - name: NEXT_PUBLIC_TELEMETRY_WS:
+              value: "http://logipulse.local"
+            - name: NEXT_PUBLIC_AI_API
+              value: "http://logipulse.local/api/ai"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "150m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-service
+  namespace: logipulse-ai
+spec:
+  selector:
+    app: web
+  ports:
+    - port: 3000
+      targetPort: 3000
