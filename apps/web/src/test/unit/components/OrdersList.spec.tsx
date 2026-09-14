@@ -27,7 +27,7 @@ describe('OrdersList Component', () => {
     expect(screen.getByText('Órdenes de Despacho')).toBeInTheDocument();
     expect(screen.getByText('TRK-998877')).toBeInTheDocument();
     expect(screen.getByText('Empresa Alfa')).toBeInTheDocument();
-    expect(screen.getByText('En Tránsito')).toBeInTheDocument();
+    expect(screen.getAllByText(/En Tránsito/i).length).toBeGreaterThan(0);
   });
 
   it('debe llamar a onSeedOrders al hacer clic en Sembrar 5 Órdenes', () => {

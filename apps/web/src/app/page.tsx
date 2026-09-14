@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import FleetMap from '../components/FleetMap';
 import OrdersList from '../components/OrdersList';
 import AiIncidentCard from '../components/AiIncidentCard';
+import CreateOrderModal from '../components/CreateOrderModal';
+import VehicleDetailModal from '../components/VehicleDetailModal';
 import { Order, TelemetryPoint, AiIncidentResponse } from '../types';
 import { api } from '../lib/api-client';
 import { io } from 'socket.io-client';
@@ -16,6 +18,16 @@ export default function DashboardPage() {
   const [aiDiagnosis, setAiDiagnosis] = useState<AiIncidentResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
+
+  // Modals state
+  const [isCreateOrderOpen, setIsCreateOrderOpen] = useState(false);
+  const [isVehicleDetailOpen, setIsVehicleDetailOpen] = useState(false);
+  const [selectedTrackingNumber, setSelectedTrackingNumber] = useState<string | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+
+  // Live simulation state
+  const [isSimulating, setIsSimulating] = useState(false);
+  const simulationTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch initial orders and their telemetry
   const fetchOrders = async () => {
@@ -83,6 +95,46 @@ export default function DashboardPage() {
       socket.disconnect();
     };
   }, []);
+
+  // Continuous Telemetry Simulation Loop
+  useEffect(() => {
+    if (isSimulating) {
+      simulationTimerRef.current = setInterval(async () => {
+        if (orders.length === 0) return;
+        // Pick a random order to simulate small GPS step
+        const randomOrder = orders[Math.floor(Math.random() * orders.length)];
+        if (randomOrder?.trackingNumber) {
+          try {
+            await api.telemetry.seed(randomOrder.trackingNumber);
+          } catch (e) {
+            console.warn('Simulacion GPS error:', e);
+          }
+        }
+      }, 2500);
+    } else {
+      if (simulationTimerRef.current) {
+        clearInterval(simulationTimerRef.current);
+      }
+    }
+
+    return () => {
+      if (simulationTimerRef.current) {
+        clearInterval(simulationTimerRef.current);
+      }
+    };
+  }, [isSimulating, orders]);
+
+  const handleToggleSimulation = () => {
+    setIsSimulating((prev) => {
+      const nextState = !prev;
+      if (nextState) {
+        showNotification('⚡ Simulador de Flota en Vivo Activado (Actualización cada 2.5s)');
+      } else {
+        showNotification('⏸️ Simulador de Flota Pausado');
+      }
+      return nextState;
+    });
+  };
 
   const handleSeedOrders = async () => {
     setIsLoading(true);
@@ -171,6 +223,17 @@ export default function DashboardPage() {
     }
   };
 
+  const handleOrderCreated = (newOrder: Order) => {
+    setOrders((prev) => [newOrder, ...prev]);
+    showNotification(`📦 Nueva Orden creada exitosamente: ${newOrder.trackingNumber}`);
+  };
+
+  const handleSelectVehicle = (trackingNumber: string, order?: Order) => {
+    setSelectedTrackingNumber(trackingNumber);
+    setSelectedOrder(order || orders.find((o) => o.trackingNumber === trackingNumber) || null);
+    setIsVehicleDetailOpen(true);
+  };
+
   const handleRunAiDemo = async () => {
     setIsLoading(true);
     try {
@@ -208,7 +271,12 @@ export default function DashboardPage() {
       {/* Grid Superior: Mapa de Flotas e Incidentes de IA */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <FleetMap telemetryData={telemetry} />
+          <FleetMap
+            telemetryData={telemetry}
+            onSelectVehicle={handleSelectVehicle}
+            isSimulating={isSimulating}
+            onToggleSimulation={handleToggleSimulation}
+          />
         </div>
         <div>
           <AiIncidentCard
@@ -225,9 +293,25 @@ export default function DashboardPage() {
           orders={orders}
           onSeedOrders={handleSeedOrders}
           onSimulateTelemetry={handleSimulateTelemetry}
+          onOpenCreateOrderModal={() => setIsCreateOrderOpen(true)}
+          onSelectVehicle={handleSelectVehicle}
           isLoading={isLoading}
         />
       </div>
+
+      {/* Modales Interactivos */}
+      <CreateOrderModal
+        isOpen={isCreateOrderOpen}
+        onClose={() => setIsCreateOrderOpen(false)}
+        onOrderCreated={handleOrderCreated}
+      />
+
+      <VehicleDetailModal
+        isOpen={isVehicleDetailOpen}
+        onClose={() => setIsVehicleDetailOpen(false)}
+        trackingNumber={selectedTrackingNumber}
+        orderInfo={selectedOrder}
+      />
     </div>
   );
 }

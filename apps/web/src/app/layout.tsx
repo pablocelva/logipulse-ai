@@ -47,7 +47,7 @@ export default function RootLayout({
         </main>
 
         <footer className="bg-slate-900 border-t border-slate-800 text-slate-400 text-xs py-4 text-center">
-          LogiPulse AI © 2026 - Microservicios Hexagonales en NestJS, Next.js 14+, PostgreSQL, MongoDB, RabbitMQ y Groq Cloud API.
+          LogiPulse AI © 2026
         </footer>
       </body>
     </html>

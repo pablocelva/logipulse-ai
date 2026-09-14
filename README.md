@@ -59,16 +59,21 @@ Este proyecto ha sido diseñado bajo los estándares más exigentes de ingenier�
 
 ```text
 logipulse-ai/
+├── .github/workflows/          # 🔄 Pipeline CI/CD GitHub Actions (ci.yml)
 ├── apps/
-│   ├── orders-service/          # 📦 Microservicio de Órdenes (PostgreSQL + REST + RabbitMQ + Jest)
-│   ├── telemetry-service/       # 📍 Microservicio de Telemetría GPS (MongoDB + WebSockets + Jest)
-│   ├── ai-analytics-service/    # 🤖 Microservicio de IA (Groq Cloud API + Tavily API + Jest)
-│   └── web/                     # 💻 Frontend Next.js 14+ (App Router, Leaflet, Tailwind)
+│   ├── orders-service/          # 📦 Microservicio de Órdenes (PostgreSQL + REST + RabbitMQ + Dockerfile + Jest)
+│   ├── telemetry-service/       # 📍 Microservicio de Telemetría GPS (MongoDB + WebSockets + Dockerfile + Jest)
+│   ├── ai-analytics-service/    # 🤖 Microservicio de IA (Groq Cloud API + Tavily API + Dockerfile + Jest)
+│   └── web/                     # 💻 Frontend Next.js 14+ (App Router, Standalone Dockerfile, Leaflet)
+├── docs/                        # 📚 Documentación Técnica & Roadmap del Proyecto
+│   ├── TYPESCRIPT_CONFIG.md     # Guía técnica de TypeScript y solución a advertencias del IDE
+│   └── PROJECT_ROADMAP.md       # Roadmap de desarrollo y backlog de fases futuras
 ├── packages/
 │   ├── shared-types/            # 📐 DTOs e Interfaces compartidas
 │   └── config-eslint/           # ⚙️ Reglas de Clean Code
-├── k8s/                         # ☸️ Manifiestos de Kubernetes (Deployments, Services, Ingress)
-├── docker-compose.yml           # 🐳 Infraestructura Local (Postgres, Mongo, RabbitMQ)
+├── k8s/                         # ☸️ Manifiestos de Kubernetes (Deployments, Services, ConfigMaps, Secrets, Ingress)
+├── docker-compose.yml           # 🐳 Infraestructura Local de Desarrollo (Postgres, Mongo, RabbitMQ)
+├── docker-compose.prod.yml      # 📦 Orquestación Completa de Producción (Bases de datos + Microservicios)
 ├── pnpm-workspace.yaml          # 📦 Configuración de Monorepo pnpm
 └── README.md
 ```
@@ -83,6 +88,7 @@ Para consultar diagramas UML, esquemas de bases de datos, especificación de end
 * 📍 **[Microservicio de Telemetría GPS (telemetry-service)](/apps/telemetry-service/README.md)**: Documentación completa del microservicio NoSQL en NestJS + MongoDB + Gateways de WebSockets (Socket.io) + Ingestión de Rutas Geográficas + Diagramas UML.
 * 🤖 **[Microservicio de IA (ai-analytics-service)](/apps/ai-analytics-service/README.md)**: Documentación completa del microservicio de IA en NestJS + Groq Cloud API (`groq/compound-mini`) + Tavily Search API + Diagnóstico de Incidentes + Diagramas UML.
 * 💻 **[Frontend Web (apps/web)](/apps/web/README.md)**: Aplicación Dashboard en Next.js 14+ (App Router), React, Tailwind CSS, Mapa Interactivo de Flotas (Leaflet), WebSockets Client, MSW Network Mocking, Jest Tests y Playwright E2E Tests.
+* 🗺️ **[Roadmap y Fases de Desarrollo del Proyecto](/docs/PROJECT_ROADMAP.md)**: Registro del backlog de funcionalidades para futuras iteraciones (Fases 2, 3 y 4).
 * ⚙️ **[Guía de Configuración TypeScript y Advertencias IDE](/docs/TYPESCRIPT_CONFIG.md)**: Documento técnico detallando el comportamiento de `tsconfig.json`, `baseUrl` y `target: "es5"` en el servidor de lenguaje de TypeScript 5+.
 
 ---
@@ -95,9 +101,9 @@ El monorepo cuenta con una suite completa de pruebas unitarias automatizadas des
 |---|---|---|---|
 | 📦 **`orders-service`** | 9 / 9 | 31 / 31 | 🟢 100% Pass |
 | 📍 **`telemetry-service`** | 7 / 7 | 16 / 16 | 🟢 100% Pass |
-| 🤖 **`ai-analytics-service`** | 4 / 4 | 8 / 8 | 🟢 100% Pass |
-| 💻 **`web` (Frontend)** | 2 / 2 | 5 / 5 | 🟢 100% Pass |
-| **TOTAL MONOREPO** | **22 / 22** | **60 / 60** | **🟢 100% PASS** |
+| 🤖 **`ai-analytics-service`** | 2 / 2 | 2 / 2 | 🟢 100% Pass |
+| 💻 **`web` (Frontend)** | 4 / 4 | 9 / 9 | 🟢 100% Pass |
+| **TOTAL MONOREPO** | **22 / 22** | **58 / 58** | **🟢 100% PASS** |
 
 ### 🛠️ Comandos de Prueba:
 ```bash
@@ -136,27 +142,26 @@ cd logipulse-ai
 pnpm install
 ```
 
-### 2. Iniciar Infraestructura de Bases de Datos & RabbitMQ con Docker:
+### 2. Iniciar en Modo Desarrollo (Bases de datos en Docker + Microservicios en Local):
 ```bash
+# Paso 1: Iniciar PostgreSQL, MongoDB y RabbitMQ
 docker-compose up -d
+
+# Paso 2: Iniciar Microservicios en Terminales independientes
+pnpm dev:orders       # Puerto 3001
+pnpm dev:telemetry    # Puerto 3002
+pnpm dev:ai           # Puerto 3003
+pnpm --filter @logipulse/web dev  # Puerto 3000
 ```
-* **PostgreSQL:** `localhost:5433` (DB: `logipulse_db`, User: `logipulse_user`)
-* **MongoDB:** `localhost:27017` (DB: `logipulse_telemetry`)
-* **RabbitMQ Dashboard:** `http://localhost:15672` (User: `guest`, Pass: `guest`)
 
-### 3. Iniciar Microservicios en desarrollo:
+### 3. Iniciar en Modo Producción (Pila Completa en Docker Compose):
 ```bash
-# Terminal 1: Servicio de Órdenes (Puerto 3001)
-pnpm dev:orders
+docker-compose -f docker-compose.prod.yml up --build -d
+```
 
-# Terminal 2: Servicio de Telemetría (Puerto 3002)
-pnpm dev:telemetry
-
-# Terminal 3: Servicio de IA (Puerto 3003)
-pnpm dev:ai
-
-# Terminal 4: Aplicación Web Frontend Next.js 14+ (Puerto 3000)
-pnpm --filter @logipulse/web dev
+### 4. Desplegar en Kubernetes (k8s):
+```bash
+kubectl apply -f k8s/
 ```
 
 ---

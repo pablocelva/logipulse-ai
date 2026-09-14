@@ -3,8 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { TelemetryPoint } from '../types';
-import { io } from 'socket.io-client';
-import { MapPin, Navigation } from 'lucide-react';
+import { MapPin, Navigation, Play, Pause, Activity } from 'lucide-react';
 
 // Dynamic import for Leaflet components to prevent SSR errors
 const MapContainer = dynamic(
@@ -32,9 +31,16 @@ const MapAutoRecenter = dynamic(
 interface FleetMapProps {
   telemetryData: TelemetryPoint[];
   onSelectVehicle?: (trackingNumber: string) => void;
+  isSimulating?: boolean;
+  onToggleSimulation?: () => void;
 }
 
-export default function FleetMap({ telemetryData, onSelectVehicle }: FleetMapProps) {
+export default function FleetMap({
+  telemetryData,
+  onSelectVehicle,
+  isSimulating,
+  onToggleSimulation,
+}: FleetMapProps) {
   const [isMounted, setIsMounted] = useState(false);
   const [customIcon, setCustomIcon] = useState<any>(null);
 
@@ -53,7 +59,7 @@ export default function FleetMap({ telemetryData, onSelectVehicle }: FleetMapPro
     });
   }, []);
 
-  // Center on Santiago Metropolitan Region (Covering Providencia, Las Condes, Vitacura, Maipú)
+  // Center on Santiago Metropolitan Region
   const defaultCenter: [number, number] = [-33.425, -70.605];
 
   if (!isMounted) {
@@ -67,14 +73,43 @@ export default function FleetMap({ telemetryData, onSelectVehicle }: FleetMapPro
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg flex flex-col h-full">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="flex items-center space-x-2">
           <MapPin className="w-5 h-5 text-sky-400" />
           <h2 className="font-semibold text-slate-100 text-lg">Monitoreo GPS en Tiempo Real</h2>
+          {isSimulating && (
+            <span className="flex items-center text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded-full font-bold animate-pulse">
+              <Activity className="w-3 h-3 mr-1 animate-spin" /> EN VIVO
+            </span>
+          )}
         </div>
-        <span className="text-xs bg-sky-950 text-sky-300 border border-sky-800 px-2.5 py-1 rounded-md font-mono">
-          {telemetryData.length} Vehículo(s) Activo(s)
-        </span>
+
+        <div className="flex items-center space-x-2">
+          {onToggleSimulation && (
+            <button
+              onClick={onToggleSimulation}
+              className={`inline-flex items-center px-3 py-1 text-xs font-medium rounded-lg transition-colors shadow-sm border ${
+                isSimulating
+                  ? 'bg-amber-950 border-amber-800 text-amber-300 hover:bg-amber-900'
+                  : 'bg-emerald-950 border-emerald-800 text-emerald-300 hover:bg-emerald-900'
+              }`}
+            >
+              {isSimulating ? (
+                <>
+                  <Pause className="w-3.5 h-3.5 mr-1 fill-amber-300" /> Pausar Simulador
+                </>
+              ) : (
+                <>
+                  <Play className="w-3.5 h-3.5 mr-1 fill-emerald-300" /> Simulador en Vivo
+                </>
+              )}
+            </button>
+          )}
+
+          <span className="text-xs bg-sky-950 text-sky-300 border border-sky-800 px-2.5 py-1 rounded-md font-mono">
+            {telemetryData.length} Vehículo(s)
+          </span>
+        </div>
       </div>
 
       <div className="relative flex-1 min-h-[380px] rounded-lg overflow-hidden border border-slate-800">
@@ -98,30 +133,38 @@ export default function FleetMap({ telemetryData, onSelectVehicle }: FleetMapPro
 
             return (
               <Marker
-                key={item.trackingNumber + (item.timestamp || Math.random())}
+                key={item.trackingNumber}
                 position={[lat, lng]}
                 icon={customIcon || undefined}
                 eventHandlers={{
                   click: () => onSelectVehicle && onSelectVehicle(item.trackingNumber),
                 }}
               >
-              <Popup>
-                <div className="p-1 text-slate-900 font-sans">
-                  <div className="font-bold text-sm text-sky-700">{item.trackingNumber}</div>
-                  <div className="text-xs text-slate-600 mt-1">
-                    🚀 Velocidad: <span className="font-semibold">{item.speed} km/h</span>
+                <Popup>
+                  <div className="p-1 text-slate-900 font-sans">
+                    <div className="font-bold text-sm text-sky-700">{item.trackingNumber}</div>
+                    <div className="text-xs text-slate-600 mt-1">
+                      🚀 Velocidad: <span className="font-semibold">{item.speed} km/h</span>
+                    </div>
+                    <div className="text-xs text-slate-600">
+                      🔋 Batería GPS: <span className="font-semibold">{item.batteryLevel}%</span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-1 font-mono">
+                      {new Date(item.timestamp).toLocaleTimeString()}
+                    </div>
+                    {onSelectVehicle && (
+                      <button
+                        onClick={() => onSelectVehicle(item.trackingNumber)}
+                        className="mt-2 w-full text-center px-2 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded text-[11px] font-medium transition-colors"
+                      >
+                        Ver Trazado de Ruta
+                      </button>
+                    )}
                   </div>
-                  <div className="text-xs text-slate-600">
-                    🔋 Batería GPS: <span className="font-semibold">{item.batteryLevel}%</span>
-                  </div>
-                  <div className="text-[10px] text-slate-400 mt-1 font-mono">
-                    {new Date(item.timestamp).toLocaleTimeString()}
-                  </div>
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
+                </Popup>
+              </Marker>
+            );
+          })}
         </MapContainer>
       </div>
     </div>

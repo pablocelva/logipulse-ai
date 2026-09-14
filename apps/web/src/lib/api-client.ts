@@ -29,12 +29,24 @@ export async function apiClient<T>(
 export const api = {
   orders: {
     getAll: () => apiClient<any[]>(`${ORDERS_SERVICE_URL}/orders`),
+    create: (data: { merchantId: string; originAddress: string; destinationAddress: string; price: number }) =>
+      apiClient<any>(`${ORDERS_SERVICE_URL}/orders`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     seed: () => apiClient<any[]>(`${ORDERS_SERVICE_URL}/orders/seed`, { method: 'POST' }),
   },
   telemetry: {
+    getHistory: (trackingNumber: string) =>
+      apiClient<any[]>(`${TELEMETRY_SERVICE_URL}/telemetry/tracking/${trackingNumber}`),
     seed: (trackingNumber: string) =>
       apiClient<any>(`${TELEMETRY_SERVICE_URL}/telemetry/seed/${trackingNumber}`, {
         method: 'POST',
+      }),
+    recordLocation: (data: { trackingNumber: string; driverId: string; latitude: number; longitude: number; speed: number; batteryLevel?: number }) =>
+      apiClient<any>(`${TELEMETRY_SERVICE_URL}/telemetry`, {
+        method: 'POST',
+        body: JSON.stringify(data),
       }),
   },
   ai: {

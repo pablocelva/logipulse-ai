@@ -21,9 +21,9 @@
 El **`apps/web`** es el cliente web frontend principal de **LogiPulse AI**, desarrollado sobre **Next.js 14+ (App Router)** y **Tailwind CSS**.
 
 Proporciona una consola de control operativa en tiempo real para despachadores y supervisores de logística con:
-1. **🗺️ Mapa Interactivo de Flota (Leaflet + OpenStreetMap)**: Visualización y auto-encuadre (`fitBounds`) de camionetas activas en rutas reales de Chile.
-2. **⚡ WebSockets en Tiempo Real (`socket.io-client`)**: Recepción instantánea de actualizaciones GPS transmitidas por `telemetry-service`.
-3. **📦 Gestión de Órdenes & Siembra**: Tabla interactiva con badges de estado dinámicos (`CREATED`, `IN_TRANSIT`, `DELIVERED`, `INCIDENT`) y disparadores de seeder para 5 órdenes y telemetría.
+1. **🗺️ Mapa Interactivo de Flota (Leaflet + OpenStreetMap)**: Visualización, auto-encuadre (`fitBounds`) y trazado de ruta histórica (`Polyline`) de camionetas en Chile.
+2. **⚡ Simulador de Flota en Vivo & WebSockets (`socket.io-client`)**: Transmisión periódica cada 2.5s simulando movimiento fluido de vehículos a lo largo de las carreteras.
+3. **📦 Gestión de Órdenes & Modales Interactivas**: Tabla dinámica con búsqueda en vivo, filtro por estado (`CREATED`, `IN_TRANSIT`, `DELIVERED`, `INCIDENT`), modal de creación de órdenes y modal de detalle con mapa de ruta.
 4. **🤖 Panel de Diagnósticos de IA**: Alertas operativas generadas por Groq Cloud LLMs y Tavily Web Search.
 
 ---
@@ -38,12 +38,14 @@ apps/web/
 │   ├── app/                                    # 🚀 NEXT.JS APP ROUTER
 │   │   ├── globals.css                         # Tailwind CSS global import & Leaflet map custom styles
 │   │   ├── layout.tsx                          # Root Layout con Header global e indicadores de WS/AI
-│   │   └── page.tsx                            # Dashboard Principal (Conexión WS, Siembra, Grid 3 columnas)
+│   │   └── page.tsx                            # Dashboard Principal (Conexión WS, Simulador en Vivo, Grid 3 columnas)
 │   │
 │   ├── components/                             # 🧱 COMPONENTES DE INTERFAZ REACT
-│   │   ├── FleetMap.tsx                        # Contenedor Leaflet MapContainer + TileLayer + Markers (Client-only)
+│   │   ├── FleetMap.tsx                        # Contenedor Leaflet MapContainer, Marcadores y botón de Simulador en Vivo
 │   │   ├── MapAutoRecenter.tsx                 # Dynamic bounds fitter mediante useMap() de Leaflet
-│   │   ├── OrdersList.tsx                      # Tabla de despachos, badges de estado y botón de siembra
+│   │   ├── OrdersList.tsx                      # Tabla de despachos, barra de búsqueda en vivo y selector de filtros
+│   │   ├── VehicleDetailModal.tsx              # Modal emergente con mapa Leaflet Polyline y métricas del vehículo
+│   │   ├── CreateOrderModal.tsx                # Modal con formulario controlado para enviar nuevas órdenes
 │   │   └── AiIncidentCard.tsx                  # Tarjeta de diagnóstico de incidentes IA con severidad
 │   │
 │   ├── lib/
@@ -58,14 +60,16 @@ apps/web/
 │       └── unit/
 │           └── components/
 │               ├── OrdersList.spec.tsx         # Unit test de tabla de órdenes
-│               └── AiIncidentCard.spec.tsx     # Unit test de tarjeta de diagnóstico IA
+│               ├── AiIncidentCard.spec.tsx     # Unit test de tarjeta de diagnóstico IA
+│               ├── CreateOrderModal.spec.tsx   # Unit test del modal de creación de órdenes
+│               └── VehicleDetailModal.spec.tsx # Unit test del modal de detalle y trayectoria
 │
 ├── e2e/                                        # 🎭 PRUEBAS END-TO-END (Playwright)
 │   └── dashboard.spec.ts                       # Test E2E de carga visual y navegación en Chromium
 ├── playwright.config.ts                        # Configuración de Playwright Test Runner
 ├── tailwind.config.js                          # Configuración del motor Tailwind CSS
 ├── tsconfig.json                               # TypeScript configuration
-└── next.config.mjs                             # Next.js configuration
+└── next.config.mjs                             # Next.js configuration (Standalone output)
 ```
 
 ---
@@ -84,71 +88,42 @@ apps/web/
                                  │       (src/app/page.tsx)        │
                                  └────────┬───────┬───────┬────────┘
                                           │       │       │
-                 ┌────────────────────────┘       │       └────────────────────────┐
-                 ▼                                ▼                                ▼
-   ┌───────────────────────────┐    ┌───────────────────────────┐    ┌───────────────────────────┐
-   │         FleetMap          │    │      AiIncidentCard       │    │        OrdersList         │
-   │  (Leaflet Map + Markers)  │    │ (AI Diagnostic Component) │    │  (Order Table & Actions)  │
-   └─────────────┬─────────────┘    └───────────────────────────┘    └───────────────────────────┘
-                 │
-                 ▼
-   ┌───────────────────────────┐
-   │     MapAutoRecenter       │
-   │  (Dynamic Bounds Fitter)  │
-   └───────────────────────────┘
+      ┌───────────────────────────────────┘       │       └───────────────────────────────────┐
+      ▼                                           ▼                                           ▼
+┌───────────┐                               ┌───────────┐                               ┌───────────┐
+│ FleetMap  │                               │  AiCard   │                               │OrdersList │
+└─────┬─────┘                               └───────────┘                               └─────┬─────┘
+      │                                                                                       │
+      ├──────────────────────────────┐                         ┌──────────────────────────────┤
+      ▼                              ▼                         ▼                              ▼
+┌───────────┐                  ┌───────────┐             ┌───────────┐                  ┌───────────┐
+│RecenterMap│                  │VehicleDet.│             │CreateModal│                  │VehicleDet.│
+└───────────┘                  └───────────┘             └───────────┘                  └───────────┘
 ```
 
 ---
 
-## 📐 4. Diagrama de Flujo de Datos & WebSockets
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Client as Dashboard Web (page.tsx)
-    participant Orders as orders-service (3001)
-    participant TelemetryWS as telemetry-service WS (3002)
-    participant TelemetryREST as telemetry-service REST (3002)
-
-    Client->>Orders: GET /orders (fetchOrders)
-    Orders-->>Client: Array de Órdenes
-    Client->>TelemetryWS: io.connect('http://localhost:3002')
-    TelemetryWS-->>Client: WebSocket Connected ⚡
-
-    Note over Client: Usuario hace clic en "Sembrar 5 Órdenes"
-    Client->>Orders: POST /orders/seed
-    Orders-->>Client: 5 Órdenes Creadas (TRK-100001 a TRK-100005)
-    
-    loop Para cada orden sembrada
-        Client->>TelemetryREST: POST /telemetry/seed/:trackingNumber
-        TelemetryREST-->>Client: Puntos GPS Generados
-    end
-
-    TelemetryWS-->>Client: Evento 'telemetry_updated' (Real-time GPS)
-    Client->>Client: Actualiza estado telemetry[] y re-renderiza Marcadores en Mapa
-```
-
----
-
-## 🎨 5. Patrones de Diseño & Buenas Prácticas Frontend
+## 🎨 4. Patrones de Diseño & Buenas Prácticas Frontend
 
 1. **Next.js Dynamic Imports sin SSR para Leaflet**:
-   - `dynamic(() => import('react-leaflet'), { ssr: false })` evita errores de compilación del lado del servidor (`window is not defined`) al cargar Leaflet sólo en el cliente.
+   - `dynamic(() => import('react-leaflet'), { ssr: false })` evita errores de compilación del lado del servidor (`window is not defined`) al cargar componentes de Leaflet (`MapContainer`, `TileLayer`, `Marker`, `Polyline`) sólo en el cliente.
 2. **Cliente HTTP Nativo Tipado (`fetch`)**:
    - Implementación de `apiClient` en [src/lib/api-client.ts](file:///d:/Programaci%C3%B3n/Wordpress/logipulse-ai/apps/web/src/lib/api-client.ts) utilizando únicamente la API nativa **`fetch`** de Next.js sin dependencias pesadas ni problemas de seguridad de Axios.
-3. **Auto-Recenter & Dynamic Bounds Framing**:
-   - `MapAutoRecenter` utiliza `useMap()` de Leaflet para calcular dinámicamente el `fitBounds` envolvente de todos los puntos de telemetría activos en pantalla.
+3. **Simulador de Flota en Vivo sin Memory Leaks**:
+   - `useEffect` con limpieza adecuada de timers (`clearInterval`) garantiza que la animación en vivo no genere fugas de memoria al pausar o cambiar de vista.
 4. **Mock Service Worker (MSW) para Testing de Componentes**:
    - Intercepción de peticiones HTTP en pruebas unitarias mediante `msw/node` para emular respuestas del backend sin depender de servicios levantados.
 
 ---
 
-## 📡 6. Contrato del Cliente HTTP API (`api-client.ts`)
+## 📡 5. Contrato del Cliente HTTP API (`api-client.ts`)
 
 ```typescript
 export const api = {
   orders: {
     getAll: () => apiClient<Order[]>('http://localhost:3001/orders'),
+    create: (data: { merchantId: string; originAddress: string; destinationAddress: string; price: number }) =>
+      apiClient<Order>('http://localhost:3001/orders', { method: 'POST', body: JSON.stringify(data) }),
     seed: () => apiClient<Order[]>('http://localhost:3001/orders/seed', { method: 'POST' }),
   },
   telemetry: {
@@ -156,6 +131,8 @@ export const api = {
       apiClient<TelemetryPoint[]>(`http://localhost:3002/telemetry/tracking/${trackingNumber}`),
     seed: (trackingNumber: string) =>
       apiClient<TelemetryPoint[]>(`http://localhost:3002/telemetry/seed/${trackingNumber}`, { method: 'POST' }),
+    recordLocation: (data: any) =>
+      apiClient<TelemetryPoint>('http://localhost:3002/telemetry', { method: 'POST', body: JSON.stringify(data) }),
   },
   ai: {
     seedDemo: () => apiClient<any>('http://localhost:3003/ai/seed-demo', { method: 'POST' }),
@@ -165,17 +142,19 @@ export const api = {
 
 ---
 
-## 🧪 7. Estrategia de Testing & Cobertura
+## 🧪 6. Estrategia de Testing & Cobertura
 
 Suite de pruebas dividida en pruebas unitarias/componentes y pruebas End-to-End:
 
 ### 📊 Cobertura Actual de Componentes:
-* **Resultados**: **2/2 Test Suites Pasadas**, **5/5 Tests Completados (100% Pass)**.
+* **Resultados**: **4/4 Test Suites Pasadas**, **9/9 Tests Completados (100% Pass)**.
 
 ### 🔬 Desglose de Pruebas:
 - **Unit & Component Testing (Jest + React Testing Library + MSW)**:
-  - `src/test/unit/components/OrdersList.spec.tsx`: Verifica el renderizado de la tabla de despachos, badges de estado y llamada a la función de siembra.
+  - `src/test/unit/components/OrdersList.spec.tsx`: Verifica la tabla de despachos, barra de búsqueda en vivo y filtros por estado.
   - `src/test/unit/components/AiIncidentCard.spec.tsx`: Prueba el renderizado de diagnósticos de IA y severidades (`HIGH`, `CRITICAL`).
+  - `src/test/unit/components/CreateOrderModal.spec.tsx`: Prueba el formulario controlado de creación de órdenes.
+  - `src/test/unit/components/VehicleDetailModal.spec.tsx`: Prueba el modal de detalle de vehículo y mapa de trayectoria.
 - **End-to-End Testing (Playwright)**:
   - `e2e/dashboard.spec.ts`: Verifica la interacción en navegador Chromium real.
 
