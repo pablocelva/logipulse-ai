@@ -10,10 +10,13 @@ dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { Transport } from '@nestjs/microservices';
+import * as cookieParser from 'cookie-parser';
 import { AiAnalyticsModule } from './ai-analytics.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AiAnalyticsModule);
+
+  app.use(cookieParser());
 
   app.useGlobalPipes(
     new ValidationPipe({

@@ -6,28 +6,48 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import * as jwt from 'jsonwebtoken';
 import { ROLES_KEY } from './roles.decorator';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
+  private get secret(): string {
+    return process.env.JWT_SECRET || 'logipulse_jwt_secret_key_2026';
+  }
+
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
     const authHeader = request.headers['authorization'];
+    const cookieToken = request.cookies?.['access_token'];
     const devBypass = request.headers['x-dev-bypass'];
 
-    if (devBypass === 'true' || process.env.NODE_ENV !== 'production') {
+    let token: string | null = null;
+
+    if (cookieToken) {
+      token = cookieToken;
+    } else if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    }
+
+    if (!token && (devBypass === 'true' || process.env.NODE_ENV !== 'production')) {
       return true;
     }
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!token) {
       throw new UnauthorizedException('Token JWT no proporcionado o inválido');
     }
 
-    const token = authHeader.split(' ')[1];
-    if (!token || token.length < 10) {
-      throw new UnauthorizedException('Formato de Token JWT malformado');
+    let decodedPayload: any = null;
+    try {
+      decodedPayload = jwt.verify(token, this.secret);
+      request.user = decodedPayload;
+    } catch {
+      if (devBypass === 'true' || process.env.NODE_ENV !== 'production') {
+        return true;
+      }
+      throw new UnauthorizedException('Token JWT inválido o expirado');
     }
 
     const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
@@ -39,7 +59,7 @@ export class JwtAuthGuard implements CanActivate {
       return true;
     }
 
-    const userRole = request.headers['x-user-role'] || 'DISPATCHER';
+    const userRole = decodedPayload?.role || request.headers['x-user-role'] || 'DISPATCHER';
     const hasRole = requiredRoles.includes(String(userRole));
 
     if (!hasRole) {

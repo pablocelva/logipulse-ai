@@ -1,10 +1,12 @@
 import { JwtAuthGuard } from 'src/infrastructure/http/guards/jwt-auth.guard';
 import { Reflector } from '@nestjs/core';
 import { ExecutionContext, UnauthorizedException, ForbiddenException } from '@nestjs/common';
+import * as jwt from 'jsonwebtoken';
 
 describe('JwtAuthGuard (ai-analytics-service)', () => {
   let guard: JwtAuthGuard;
   let reflectorMock: Partial<Reflector>;
+  const secret = 'logipulse_jwt_secret_key_2026';
 
   beforeEach(() => {
     reflectorMock = {
@@ -13,22 +15,25 @@ describe('JwtAuthGuard (ai-analytics-service)', () => {
     guard = new JwtAuthGuard(reflectorMock as Reflector);
   });
 
-  const createMockContext = (headers: Record<string, string>): ExecutionContext => {
+  const createMockContext = (
+    headers: Record<string, string>,
+    cookies?: Record<string, string>,
+  ): ExecutionContext => {
     return {
       switchToHttp: () => ({
-        getRequest: () => ({ headers }),
+        getRequest: () => ({ headers, cookies: cookies || {} }),
       }),
       getHandler: jest.fn(),
       getClass: jest.fn(),
     } as any;
   };
 
-  it('debe permitir acceso cuando devBypass es true', () => {
+  it('debe permitir acceso cuando devBypass es true sin token', () => {
     const context = createMockContext({ 'x-dev-bypass': 'true' });
     expect(guard.canActivate(context)).toBe(true);
   });
 
-  it('debe lanzar UnauthorizedException cuando falta el header Authorization en producción', () => {
+  it('debe lanzar UnauthorizedException cuando falta el token en producción', () => {
     const originalEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';
 
@@ -38,11 +43,13 @@ describe('JwtAuthGuard (ai-analytics-service)', () => {
     process.env.NODE_ENV = originalEnv;
   });
 
-  it('debe permitir acceso con token Bearer válido en producción', () => {
+  it('debe permitir acceso con token Bearer JWT firmado válido en producción', () => {
     const originalEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';
 
-    const context = createMockContext({ authorization: 'Bearer valid_jwt_token_sample_123' });
+    const validToken = jwt.sign({ sub: 'usr-1', email: 'admin@logipulse.ai', role: 'ADMIN' }, secret);
+
+    const context = createMockContext({ authorization: `Bearer ${validToken}` });
     expect(guard.canActivate(context)).toBe(true);
 
     process.env.NODE_ENV = originalEnv;
@@ -53,11 +60,9 @@ describe('JwtAuthGuard (ai-analytics-service)', () => {
     process.env.NODE_ENV = 'production';
     (reflectorMock.getAllAndOverride as jest.Mock).mockReturnValue(['ADMIN']);
 
-    const context = createMockContext({
-      authorization: 'Bearer valid_jwt_token_sample_123',
-      'x-user-role': 'DRIVER',
-    });
+    const driverToken = jwt.sign({ sub: 'usr-2', email: 'driver@logipulse.ai', role: 'DRIVER' }, secret);
 
+    const context = createMockContext({ authorization: `Bearer ${driverToken}` });
     expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
 
     process.env.NODE_ENV = originalEnv;
