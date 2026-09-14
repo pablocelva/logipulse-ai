@@ -267,11 +267,30 @@ Base URL: `http://localhost:3001`
   "status": "IN_TRANSIT"
 }
 ```
-- **Response `200 OK`**: Retorna la orden actualizada y emite el evento `order.status_updated`.
+### 6. Health Check Endpoint (`GET /health`)
+- **Descripción:** Endpoint de diagnóstico de salud del servicio y estado de la conexión a PostgreSQL.
+- **Response `200 OK`**:
+```json
+{
+  "status": "UP",
+  "service": "orders-service",
+  "database": "PostgreSQL Connected",
+  "uptimeSeconds": 120,
+  "memoryUsageMb": 45,
+  "timestamp": "2026-09-14T15:00:00.000Z"
+}
+```
 
 ---
 
-## 🔔 8. Eventos Publicados en RabbitMQ
+## 🔒 8. Seguridad y Control de Acceso (JWT & RBAC)
+
+- **`JwtAuthGuard`**: Guard de autenticación JWT con soporte para bypass en entorno de desarrollo (`x-dev-bypass: true` o `NODE_ENV !== 'production'`).
+- **`@Roles(...)`**: Decorador para control de acceso basado en roles (RBAC) validando roles como `ADMIN`, `DISPATCHER`.
+
+---
+
+## 🔔 9. Eventos Publicados en RabbitMQ
 
 | Event Pattern | Trigger | Payload JSON Schema |
 |---|---|---|
@@ -280,12 +299,12 @@ Base URL: `http://localhost:3001`
 
 ---
 
-## 🧪 9. Estrategia de Testing & Cobertura
+## 🧪 10. Estrategia de Testing & Cobertura
 
 Suite de pruebas desarrollada con **Jest** y `@nestjs/testing`:
 
 ### 📊 Cobertura Actual:
-* **Resultados**: **9/9 Test Suites Pasadas**, **31/31 Tests Completados (100% Pass)**.
+* **Resultados**: **11/11 Test Suites Pasadas**, **36/36 Tests Completados (100% Pass)**.
 
 ### 🔬 Desglose de Archivos de Prueba:
 - `test/unit/domain/entities/order.entity.spec.ts`: Pruebas de reglas de negocio y transiciones de estado.
@@ -297,6 +316,8 @@ Suite de pruebas desarrollada con **Jest** y `@nestjs/testing`:
 - `test/unit/infrastructure/persistence/adapters/typeorm-order-repository.adapter.spec.ts`: Persistencia aislada con Mocks de TypeORM Repository.
 - `test/unit/infrastructure/messaging/adapters/rabbitmq-event-publisher.adapter.spec.ts`: Emisión AMQP con Mocks de NestJS `ClientProxy`.
 - `test/unit/infrastructure/http/controllers/order.controller.spec.ts`: Capa de entrada HTTP REST.
+- `test/unit/infrastructure/http/controllers/health.controller.spec.ts`: Prueba del endpoint `/health` y diagnóstico de BD.
+- `test/unit/infrastructure/http/guards/jwt-auth.guard.spec.ts`: Validación de seguridad JWT y bypass de desarrollo.
 
 ### 🛠️ Comandos de Prueba:
 ```bash

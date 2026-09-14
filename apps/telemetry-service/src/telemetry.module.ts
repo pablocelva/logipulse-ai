@@ -6,6 +6,7 @@ import { MongooseTelemetryRepositoryAdapter } from './infrastructure/persistence
 import { RecordLocationUseCase } from './application/use-cases/record-location.use-case';
 import { GetLocationHistoryUseCase } from './application/use-cases/get-location-history.use-case';
 import { TelemetryController } from './infrastructure/http/controllers/telemetry.controller';
+import { HealthController } from './infrastructure/http/controllers/health.controller';
 import { TelemetryGateway } from './infrastructure/websockets/telemetry.gateway';
 import { OrderEventsConsumer } from './infrastructure/messaging/consumers/order-events.consumer';
 
@@ -19,7 +20,7 @@ import { OrderEventsConsumer } from './infrastructure/messaging/consumers/order-
       { name: TelemetryMongoEntity.name, schema: TelemetrySchema },
     ]),
   ],
-  controllers: [TelemetryController, OrderEventsConsumer],
+  controllers: [TelemetryController, HealthController, OrderEventsConsumer],
   providers: [
     {
       provide: TELEMETRY_REPOSITORY_PORT,

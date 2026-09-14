@@ -186,28 +186,44 @@ Base URL: `http://localhost:3003`
 }
 ```
 
-### 2. Analizar Incidente Personalizado (`POST /ai/analyze-incident`)
-- **Request Body**:
+### 3. Health Check Endpoint (`GET /health`)
+- **Descripción:** Endpoint de diagnóstico de salud del servicio y disponibilidad de los proveedores de IA (Groq Cloud API y Tavily Search API).
+- **Response `200 OK`**:
 ```json
 {
-  "trackingNumber": "TRK-100002",
-  "location": "Av. Pajaritos esquina 5 de Abril, Maipú",
-  "description": "Falla de semáforos y trabajo en la vía pública"
+  "status": "UP",
+  "service": "ai-analytics-service",
+  "aiProviders": {
+    "groqCloud": "Configured",
+    "tavilySearch": "Configured"
+  },
+  "uptimeSeconds": 180,
+  "memoryUsageMb": 48,
+  "timestamp": "2026-09-14T15:00:00.000Z"
 }
 ```
-- **Response `200 OK`**: Retorna el objeto `IncidentAnalysis` con el diagnóstico completo.
 
 ---
 
-## 🧪 7. Estrategia de Testing & Cobertura
+## 🔒 7. Seguridad y Control de Acceso (JWT & RBAC)
+
+- **`JwtAuthGuard`**: Guard de autenticación JWT con soporte para bypass en entorno de desarrollo (`x-dev-bypass: true` o `NODE_ENV !== 'production'`).
+- **`@Roles(...)`**: Decorador para control de acceso basado en roles (RBAC) validando roles como `ADMIN`, `DISPATCHER`.
+
+---
+
+## 🧪 8. Estrategia de Testing & Cobertura
 
 Suite de pruebas unitarias desarrollada con **Jest** y Mocks de las APIs externas:
+
+### 📊 Cobertura Actual:
+* **Resultados**: **4/4 Test Suites Pasadas**, **8/8 Tests Completados (100% Pass)**.
 
 ### 🔬 Desglose de Archivos de Prueba:
 - `test/unit/domain/entities/incident-analysis.entity.spec.ts`: Reglas de dominio para severidades de incidentes (`isCritical()`).
 - `test/unit/application/use-cases/analyze-incident.use-case.spec.ts`: Flujo completo de orquestación Tavily + Groq con Mocks de `AiModelPort` y `WebSearchPort`.
-- `test/unit/infrastructure/adapters/groq-ai-client.adapter.spec.ts`: Adaptador del SDK de Groq Cloud.
-- `test/unit/infrastructure/http/controllers/ai-analytics.controller.spec.ts`: Controlador HTTP REST.
+- `test/unit/infrastructure/http/controllers/health.controller.spec.ts`: Diagnosticador de salud y estado de llaves Groq/Tavily.
+- `test/unit/infrastructure/http/guards/jwt-auth.guard.spec.ts`: Guard de autenticación JWT y RBAC.
 
 ### 🛠️ Comandos de Prueba:
 ```bash

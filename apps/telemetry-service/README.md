@@ -238,6 +238,18 @@ WebSocket Endpoint: `http://localhost:3002` (Transporte: WebSocket nativo o Sock
   "longitude": -70.5530,
   "speed": 62,
   "batteryLevel": 88
+### 4. Health Check Endpoint (`GET /health`)
+- **Descripción:** Endpoint de diagnóstico de salud del servicio, estado de la conexión NoSQL a MongoDB y Socket.io WebSockets Gateway.
+- **Response `200 OK`**:
+```json
+{
+  "status": "UP",
+  "service": "telemetry-service",
+  "database": "MongoDB Connected",
+  "websocketsGateway": "Active (Socket.io)",
+  "uptimeSeconds": 150,
+  "memoryUsageMb": 52,
+  "timestamp": "2026-09-14T15:00:00.000Z"
 }
 ```
 
@@ -249,7 +261,14 @@ WebSocket Endpoint: `http://localhost:3002` (Transporte: WebSocket nativo o Sock
 
 ---
 
-## 🐰 8. Eventos Consumidos de RabbitMQ
+## 🔒 8. Seguridad y Control de Acceso (JWT & RBAC)
+
+- **`JwtAuthGuard`**: Guard de autenticación JWT con soporte para bypass en entorno de desarrollo (`x-dev-bypass: true` o `NODE_ENV !== 'production'`).
+- **`@Roles(...)`**: Decorador para control de acceso basado en roles (RBAC) validando roles como `ADMIN`, `DISPATCHER`, `DRIVER`.
+
+---
+
+## 🐰 9. Eventos Consumidos de RabbitMQ
 
 | Event Pattern | Consumer Handler | Acción Realizada |
 |---|---|---|
@@ -258,12 +277,12 @@ WebSocket Endpoint: `http://localhost:3002` (Transporte: WebSocket nativo o Sock
 
 ---
 
-## 🧪 9. Estrategia de Testing & Cobertura
+## 🧪 10. Estrategia de Testing & Cobertura
 
 Suite de pruebas unitarias implementada con **Jest**:
 
 ### 📊 Cobertura Actual:
-* **Resultados**: **7/7 Test Suites Pasadas**, **16/16 Tests Completados (100% Pass)**.
+* **Resultados**: **9/9 Test Suites Pasadas**, **20/20 Tests Completados (100% Pass)**.
 
 ### 🔬 Desglose de Archivos de Prueba:
 - `test/unit/domain/entities/telemetry-point.entity.spec.ts`: Lógica de dominio y reglas de velocidad/batería.
@@ -273,6 +292,8 @@ Suite de pruebas unitarias implementada con **Jest**:
 - `test/unit/infrastructure/websockets/telemetry.gateway.spec.ts`: Prueba de Socket.io Server, salas y emisión en vivo.
 - `test/unit/infrastructure/messaging/consumers/order-events.consumer.spec.ts`: Procesamiento de eventos AMQP de RabbitMQ.
 - `test/unit/infrastructure/http/controllers/telemetry.controller.spec.ts`: Endpoints REST de telemetría.
+- `test/unit/infrastructure/http/controllers/health.controller.spec.ts`: Endpoint `/health` y diagnóstico MongoDB.
+- `test/unit/infrastructure/http/guards/jwt-auth.guard.spec.ts`: Validación de seguridad JWT y bypass de desarrollo.
 
 ### 🛠️ Comandos de Prueba:
 ```bash

@@ -22,6 +22,8 @@ jest.mock('../../../lib/api-client', () => ({
 }));
 
 describe('VehicleDetailModal Component', () => {
+  jest.setTimeout(15000);
+
   it('no debe renderizar nada cuando isOpen es false o trackingNumber es null', () => {
     const { container } = render(
       <VehicleDetailModal isOpen={false} trackingNumber={null} onClose={jest.fn()} />

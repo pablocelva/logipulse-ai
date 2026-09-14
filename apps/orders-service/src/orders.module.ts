@@ -10,6 +10,7 @@ import { CreateOrderUseCase } from './application/use-cases/create-order.use-cas
 import { GetOrderByIdUseCase } from './application/use-cases/get-order-by-id.use-case';
 import { UpdateOrderStatusUseCase } from './application/use-cases/update-order-status.use-case';
 import { OrderController } from './infrastructure/http/controllers/order.controller';
+import { HealthController } from './infrastructure/http/controllers/health.controller';
 
 @Module({
   imports: [
@@ -36,7 +37,7 @@ import { OrderController } from './infrastructure/http/controllers/order.control
       },
     ]),
   ],
-  controllers: [OrderController],
+  controllers: [OrderController, HealthController],
   providers: [
     {
       provide: ORDER_REPOSITORY_PORT,

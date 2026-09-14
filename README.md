@@ -99,11 +99,11 @@ El monorepo cuenta con una suite completa de pruebas unitarias automatizadas des
 
 | Servicio / Aplicación | Test Suites | Tests Totales | Cobertura / Estado |
 |---|---|---|---|
-| 📦 **`orders-service`** | 9 / 9 | 31 / 31 | 🟢 100% Pass |
-| 📍 **`telemetry-service`** | 7 / 7 | 16 / 16 | 🟢 100% Pass |
-| 🤖 **`ai-analytics-service`** | 2 / 2 | 2 / 2 | 🟢 100% Pass |
+| 📦 **`orders-service`** | 11 / 11 | 36 / 36 | 🟢 100% Pass |
+| 📍 **`telemetry-service`** | 9 / 9 | 20 / 20 | 🟢 100% Pass |
+| 🤖 **`ai-analytics-service`** | 4 / 4 | 8 / 8 | 🟢 100% Pass |
 | 💻 **`web` (Frontend)** | 4 / 4 | 9 / 9 | 🟢 100% Pass |
-| **TOTAL MONOREPO** | **22 / 22** | **58 / 58** | **🟢 100% PASS** |
+| **TOTAL MONOREPO** | **28 / 28** | **73 / 73** | **🟢 100% PASS** |
 
 ### 🛠️ Comandos de Prueba:
 ```bash

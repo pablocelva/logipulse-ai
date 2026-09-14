@@ -5,10 +5,11 @@ import { WEB_SEARCH_PORT } from './domain/ports/web-search.port';
 import { TavilyWebSearchAdapter } from './infrastructure/adapters/tavily-web-search.adapter';
 import { AnalyzeIncidentUseCase } from './application/use-cases/analyze-incident.use-case';
 import { AiAnalyticsController } from './infrastructure/http/controllers/ai-analytics.controller';
+import { HealthController } from './infrastructure/http/controllers/health.controller';
 import { IncidentEventsConsumer } from './infrastructure/messaging/consumers/incident-events.consumer';
 
 @Module({
-  controllers: [AiAnalyticsController, IncidentEventsConsumer],
+  controllers: [AiAnalyticsController, HealthController, IncidentEventsConsumer],
   providers: [
     {
       provide: AI_MODEL_PORT,
